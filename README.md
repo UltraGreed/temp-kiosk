@@ -13,3 +13,17 @@ meson compile -C build
 ```sh
 ./build/main
 ```
+
+# Cross-compilation
+Linux-to-windows compilation can be done with provided cross-compilation file.
+
+Setup build directory with:
+```sh
+meson setup --cross-file cross-files/x86_64-w64-mingw32.txt build-mingw
+```
+Then build as usual:
+```sh
+meson compile -C build-mingw
+```
+
+For windows-to-Linux compilation just compile project under WSL.
