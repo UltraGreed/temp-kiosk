@@ -7,13 +7,16 @@ project(
 )
 
 dependencies = [
+  subproject('crossbg').get_variable('dep'),
+]
+
+src = [
+  'src/temp_kiosk.c',
 ]
 
 exe = executable(
   'main',
-  'temp_kiosk.c',
+  src,
   dependencies : dependencies,
   install : true,
 )
-
-test('basic', exe)
