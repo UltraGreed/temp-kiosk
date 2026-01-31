@@ -1,12 +1,10 @@
 #include "crossbg.h"
-#include <stdarg.h>
 
 #ifdef __linux__
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
 #include <fcntl.h>
 #else
@@ -19,6 +17,9 @@
 #include <windows.h>
 #endif
 
+#include "my_types.h"
+#include "my_time.h"
+
 #ifdef __linux__
 usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
     i32 pipefd[2];
@@ -26,7 +27,7 @@ usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
 
     fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
 
-    i32 forkres = fork();
+    pid_t forkres = fork();
     if (forkres == -1) {
         return errno;
     } else if (forkres == 0) { // child
@@ -41,34 +42,34 @@ usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
     // parent
     close(pipefd[1]);
 
-    i32 err;
+    int err_rec;
     // FIXME: parent will hang if child hangs
-    usize n = read(pipefd[0], &err, sizeof(err));
+    usize n = read(pipefd[0], &err_rec, sizeof(err_rec));
     close(pipefd[0]);
 
     if (n > 0) { // Child start failed with errno
         waitpid(forkres, NULL, 0);
-        return err;
+        return err_rec;
     }
 
     *proc = forkres;
     return 0;
 }
 
-BG_WRES bg_wait(proc_t proc, usize timeout, i32 *status) {
+BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
     i32 wstatus;
 
-    usize tstart = time(NULL);
-    while (time(NULL) - tstart < timeout) {
+    f64 time_start = get_secs();
+    while (!timeout || get_secs() - time_start < timeout) {
         i32 wres = waitpid(proc, &wstatus, WNOHANG);
         if (wres == -1)
             return BG_WFAIL;
         if (wres != 0) {
-            if (WIFEXITED(wstatus))
+            if (status != NULL && WIFEXITED(wstatus))
                 *status = WEXITSTATUS(wstatus);
             return BG_WEXITED;
         }
-        usleep(100000);
+        usleep(1000);
     }
     return BG_WTIMEOUT;
 }

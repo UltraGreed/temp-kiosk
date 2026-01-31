@@ -10,13 +10,25 @@ dependencies = [
   subproject('crossbg').get_variable('dep'),
 ]
 
-src = [
-  'src/temp_kiosk.c',
+src_logger = [
+  'src/logger.c',
 ]
 
-exe = executable(
-  'main',
-  src,
+
+logger_exe = executable(
+  'logger',
+  src_logger,
+  dependencies : dependencies,
+  install : true,
+)
+
+src_logger_cli = [
+  'src/logger_cli.c',
+]
+
+logger_cli_exe = executable(
+  'logger_cli',
+  src_logger_cli,
   dependencies : dependencies,
   install : true,
 )

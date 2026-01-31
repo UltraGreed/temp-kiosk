@@ -2,9 +2,10 @@
 #define crossbg_h
 
 #include "my_types.h"
+#include <signal.h>
 
 #ifdef __linux__
-typedef usize proc_t;
+typedef pid_t proc_t;
 #else
 #include <windows.h>
 typedef HANDLE proc_t;
@@ -26,7 +27,7 @@ typedef enum {
 /// Timeout in seconds can optionally be provided. Set to 0 for no limit.
 /// If timeout exceeded, program execution continues, process is not killed.
 /// Return enum representing waiting result.
-BG_WRES bg_wait(proc_t pid, usize timeout, i32 *status);
+BG_WRES bg_wait(proc_t pid, f64 timeout, i32 *status);
 
 /// Send SIGINT to process with given pid.
 /// Return 0 if successful, otherwise errno on Linux, GetLastError on Windows.

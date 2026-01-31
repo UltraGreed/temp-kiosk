@@ -5,6 +5,7 @@ inc = include_directories('.')
 lib = static_library(
   'crossbg',
   'crossbg.c',
+  'my_time.c',
   include_directories: inc,
 )
 
