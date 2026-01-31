@@ -1,21 +1,18 @@
-#include <asm-generic/errno-base.h>
+#include "logger.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
-#include <threads.h>
 #include <unistd.h>
-
-#include <fcntl.h>
-#include <semaphore.h>
-#include <sys/mman.h>
 
 #include "my_types.h"
 #include "cross_bg.h"
 #include "cross_time.h"
-#include "logger.h"
+#include "str_utils.h"
+#include "cross_mem.h"
+
 
 static volatile sig_atomic_t is_working = true;
 static f32 IDLE_INTER = 0.016;
@@ -49,20 +46,20 @@ static f32 COPY2_DELAY = 2.0;
     } while (0);
 
 int write_start_copy(const char *fname, int n_copy) {
-    cross_time t;
+    TIME_S t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
         return -1;
     }
 
-    WRITE_FILE_OR_FAIL(fname, "Copy %d starting at: %02d-%02d-%d %02d:%02d:%0.3lf\n",
-                       n_copy, t.day, t.month, t.year, t.hours, t.mins, t.secs);
+    WRITE_FILE_OR_FAIL(fname, "Copy %d started with pid %d at: %02d-%02d-%d %02d:%02d:%0.3lf\n",
+                       n_copy, getpid(), t.day, t.month, t.year, t.hours, t.mins, t.secs);
     return 0;
 }
 
 int write_exit_copy(const char *fname, int n_copy) {
-    cross_time t;
+    TIME_S t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -77,7 +74,7 @@ int write_exit_copy(const char *fname, int n_copy) {
 /// Write pid, current date and counter.
 /// Return 0 on success, -1 on error.
 int write_info(const char *fname, i32 ctr) {
-    cross_time t;
+    TIME_S t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -85,13 +82,13 @@ int write_info(const char *fname, i32 ctr) {
     }
 
     pid_t pid = getpid();
-    WRITE_FILE_OR_FAIL(fname, "PID: %d, Date: %02d-%02d-%d %02d:%02d:%0.3lf, Counter: %05d\n", pid, t.day,
-                       t.month, t.year, t.hours, t.mins, t.secs, ctr);
+    WRITE_FILE_OR_FAIL(fname, "PID: %d, Date: %02d-%02d-%d %02d:%02d:%0.3lf, Counter: %05d\n",
+                       pid, t.day, t.month, t.year, t.hours, t.mins, t.secs, ctr);
     return 0;
 }
 
 int write_copies_still_running(const char *fname) {
-    cross_time t;
+    TIME_S t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -119,31 +116,6 @@ int wrong_args(void) {
     return 2;
 }
 
-bool starts_with(const char *str, const char *prefix) {
-    return strncmp(prefix, str, strlen(prefix)) == 0;
-}
-
-bool streql(const char *s1, const char *s2) {
-    return strcmp(s1, s2) == 0;
-}
-
-/// Return -1 on error, 1 if shm exists, 0 otherwise
-int shm_exists(const char *shm_name) {
-    int shm_fd = shm_open(shm_name, O_CREAT | O_EXCL, 0);
-    int res;
-    if (shm_fd == -1 && errno == EEXIST)
-        res = 1;
-    else if (shm_fd == -1)
-        res = -1;
-    else
-        res = 0;
-
-    if (res == 0)
-        shm_unlink(shm_name);
-
-    return res;
-}
-
 #define TRY_OR_CLEANUP(expr, err_msg)                                                                        \
     do {                                                                                                     \
         if ((expr) == -1) {                                                                                  \
@@ -153,10 +125,6 @@ int shm_exists(const char *shm_name) {
         }                                                                                                    \
     } while (0);
 
-bool is_proc_running(proc_t proc) {
-    BG_WRES w_res = bg_wait(proc, 1e-5, NULL);
-    return w_res == BG_WTIMEOUT;
-}
 
 static int exit_code = 0;
 
@@ -185,10 +153,9 @@ int main(int argc, const char *argv[]) {
     // Handle Ctrl-C
     signal(SIGINT, sig_handler);
 
-    // ref_ctr counter semaphore
-    // [xxxx]  [xxxx]   [xxxx]
-    const char *shm_name = "/temp_kiosk_logger";
-    int shm_existed = shm_exists(shm_name);
+    // ref_ctr counter
+    // [xxxx]  [xxxx]  
+    int shm_existed = mem_shm_exists(LOGGER_SHM_NAME);
     if (shm_existed == -1) {
         perror("Unable to create shared memory");
         exit_code = 1;
@@ -201,11 +168,9 @@ int main(int argc, const char *argv[]) {
         exit_code = 2;
         goto cleanup;
     }
-    int shm_flag = O_RDWR | O_CREAT;
-    mode_t shm_mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    int shm_fd = shm_open(shm_name, shm_flag, shm_mode);
 
-    if (shm_fd == -1) {
+    MEM_SHM_FD shm_fd = mem_shm_open(LOGGER_SHM_NAME, LOGGER_SHM_LEN);
+    if (shm_fd == (MEM_SHM_FD) -1) {
         perror("Unable to create shared memory");
         exit_code = 1;
         goto cleanup;
@@ -214,34 +179,34 @@ int main(int argc, const char *argv[]) {
 
     bool is_origin_inst = !shm_existed;
 
-    if (is_origin_inst)
-        TRY_OR_CLEANUP(ftruncate(shm_fd, LOGGER_SHM_LEN), "Unable to truncate shared memory");
-
     // Mapping shm to memory
-    int prot = PROT_READ | PROT_WRITE;
-    void *map_res = mmap(NULL, LOGGER_SHM_LEN, prot, MAP_SHARED, shm_fd, 0);
-    if (map_res == (void *)-1) {
+    void *addr = mem_mmap(shm_fd, LOGGER_SHM_LEN);
+    if (addr == (void *)-1) {
         perror("Unable to map shared memory");
         exit_code = 1;
         goto cleanup;
     }
     mmapped = true;
 
-    i32 *ref_ctr = map_res;
-    i32 *ctr = (i32 *)map_res + 1;
-    sem_t *sem = (sem_t *)((i32 *)map_res + 2);
-
+    i32 *ref_ctr = addr;
+    i32 *ctr = (i32 *)addr + 1;
+    
+    MEM_SEM sem = mem_sem_open(LOGGER_SEM_NAME, 1);
+    if (sem == (void *) -1) {
+        perror("Unable to create or open semaphore");
+        exit_code = 1;
+        goto cleanup;
+    }
     // Initializing shm and sem
     if (is_origin_inst) { // This is the main logger
         *ref_ctr = 0;
-        TRY_OR_CLEANUP(sem_init(sem, 1, 1), "Unable to initialize semaphore");
         *ctr = 0;
     }
     sem_loaded = true;
 
-    TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
     *ref_ctr += 1;
-    TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
 
     proc_t cli_proc;
     if (logger_mode == MODE_MAIN) {
@@ -262,16 +227,16 @@ int main(int argc, const char *argv[]) {
             if (is_origin_inst) {
                 if (get_secs() - ctr_secs >= CTR_INTER) {
                     ctr_secs = get_secs();
-                    TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+                    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
                     *ctr += 1;
-                    TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+                    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
                 }
                 if (get_secs() - log_secs >= LOG_INTER) {
                     log_secs = get_secs();
 
-                    TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+                    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
                     TRY_OR_CLEANUP(write_info(fname, *ctr), "Unable to write to log");
-                    TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+                    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
                 }
                 if (get_secs() - copy_secs >= COPY_INTER) {
                     copy_secs = get_secs();
@@ -294,57 +259,61 @@ int main(int argc, const char *argv[]) {
                     }
                 }
             } else { // At least one --mode=main is already running --- just wait
-                TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+                TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
                 if (*ref_ctr == 1) { // If all the other mains die, become new main
                     is_origin_inst = true;
                     log_secs = 0;
                     copy_secs = 0;
                 }
-                TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+                TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
             }
-            sleep(IDLE_INTER / 2);
+            sleep(IDLE_INTER);
         }
         printf("Log writing finished.\n");
     } else if (logger_mode == MODE_COPY1) {
-        TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
         write_start_copy(fname, 1);
         *ctr += 10;
         write_exit_copy(fname, 1);
-        TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
     } else {
-        TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
         write_start_copy(fname, 2);
         *ctr *= 2;
-        TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
 
         sleep(COPY2_DELAY);
 
-        TRY_OR_CLEANUP(sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
         *ctr /= 2;
         write_exit_copy(fname, 2);
-        TRY_OR_CLEANUP(sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
     }
+
 
 cleanup:
     if (cli_started)
         bg_kill(cli_proc);
     if (sem_loaded) {
-        int sem_wait_res = sem_wait(sem);
+        int sem_wait_res = mem_sem_wait(sem);
         assert(sem_wait_res == 0); // If it fails, it fails...
-
         *ref_ctr -= 1;
-        if (*ref_ctr == 0) {
-            sem_destroy(sem);
-            shm_unlink(shm_name);
-        }
-
-        int sem_post_res = sem_post(sem);
+        bool last_ref = *ref_ctr == 0;
+        int sem_post_res = mem_sem_post(sem);
         assert(sem_post_res == 0);
+
+        mem_sem_close(sem);
+        if (last_ref) {
+            printf("PID: %d cleared sem and shm\n", getpid());
+            mem_sem_unlink(LOGGER_SEM_NAME);
+            mem_shm_unlink(LOGGER_SHM_NAME);
+        }
     }
     if (mmapped)
-        munmap(map_res, LOGGER_SHM_LEN);
+        mem_munmap(addr, LOGGER_SHM_LEN);
     if (shm_opened)
-        close(shm_fd);
+        mem_shm_close(shm_fd);
+
 
     return exit_code;
 }

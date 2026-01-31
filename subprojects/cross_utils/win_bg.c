@@ -1,13 +1,5 @@
 #include "cross_bg.h"
 
-#ifdef __linux__
-#include <errno.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <fcntl.h>
-#else
 #include <handleapi.h>
 #include <synchapi.h>
 #include <winerror.h>
@@ -15,71 +7,9 @@
 #include <errhandlingapi.h>
 #include <processthreadsapi.h>
 #include <windows.h>
-#endif
 
 #include "my_types.h"
-#include "cross_time.h"
 
-#ifdef __linux__
-usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
-    i32 pipefd[2];
-    pipe(pipefd);
-
-    fcntl(pipefd[1], F_SETFD, FD_CLOEXEC);
-
-    pid_t forkres = fork();
-    if (forkres == -1) {
-        return errno;
-    } else if (forkres == 0) { // child
-        close(pipefd[0]);
-        if (execvp(command, argv) == -1) {
-            i32 err = errno;
-            write(pipefd[1], &err, sizeof(err));
-            _exit(127);
-        }
-    }
-
-    // parent
-    close(pipefd[1]);
-
-    int err_rec;
-    // FIXME: parent will hang if child hangs
-    usize n = read(pipefd[0], &err_rec, sizeof(err_rec));
-    close(pipefd[0]);
-
-    if (n > 0) { // Child start failed with errno
-        waitpid(forkres, NULL, 0);
-        return err_rec;
-    }
-
-    *proc = forkres;
-    return 0;
-}
-
-BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
-    i32 wstatus;
-
-    f64 time_start = get_secs();
-    while (!timeout || get_secs() - time_start < timeout) {
-        i32 wres = waitpid(proc, &wstatus, WNOHANG);
-        if (wres == -1)
-            return BG_WFAIL;
-        if (wres != 0) {
-            if (status != NULL && WIFEXITED(wstatus))
-                *status = WEXITSTATUS(wstatus);
-            return BG_WEXITED;
-        }
-        usleep(1000);
-    }
-    return BG_WTIMEOUT;
-}
-
-usize bg_kill(proc_t proc) {
-    if (kill(proc, SIGINT) == 0)
-        return 0;
-    return errno;
-}
-#else
 static char *join_strings(char *const strings[]) {
     usize total_len = 0;
     for (char *const *arg = strings; *arg != NULL; arg++)
@@ -117,7 +47,7 @@ usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
     return 0;
 }
 
-BG_WRES bg_wait(proc_t proc, usize timeout, i32 *status) {
+BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
     BG_WRES res;
     if (timeout == 0)
         timeout = INFINITE;
@@ -136,7 +66,8 @@ BG_WRES bg_wait(proc_t proc, usize timeout, i32 *status) {
         goto close;
     }
 
-    *status = exit_code;
+    if (status != NULL)
+        *status = exit_code;
     res = BG_WEXITED;
 
 close:
@@ -150,4 +81,8 @@ usize bg_kill(proc_t proc) {
         return GetLastError();
     return 0;
 }
-#endif
+
+bool is_proc_running(proc_t proc) {
+    BG_WRES w_res = bg_wait(proc, 1e-5, NULL);
+    return w_res == BG_WTIMEOUT;
+}

@@ -9,14 +9,14 @@ typedef struct {
     u8 hours;
     u8 mins;
     double secs;
-} cross_time;
+} TIME_S;
 
 /// Fill provided datetime object
 /// Return 0 on success, -1 otherwise
-int get_my_datetime(cross_time *mt);
+int get_my_datetime(TIME_S *mt);
 
 
-/// Return time elapsed since program start in seconds
+/// Return time elapsed since somewhere in history
 f64 get_secs(void);
 
 

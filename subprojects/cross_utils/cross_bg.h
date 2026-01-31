@@ -1,10 +1,9 @@
-#ifndef cross_bg_h
-#define cross_bg_h
+#pragma once
 
 #include "my_types.h"
-#include <signal.h>
 
 #ifdef __linux__
+#include <time.h>
 typedef pid_t proc_t;
 #else
 #include <windows.h>
@@ -33,4 +32,4 @@ BG_WRES bg_wait(proc_t pid, f64 timeout, i32 *status);
 /// Return 0 if successful, otherwise errno on Linux, GetLastError on Windows.
 usize bg_kill(proc_t pid);
 
-#endif
+bool is_proc_running(proc_t proc);
