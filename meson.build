@@ -7,7 +7,7 @@ project(
 )
 
 dependencies = [
-  subproject('crossbg').get_variable('dep'),
+  subproject('cross_utils').get_variable('dep'),
 ]
 
 src_logger = [

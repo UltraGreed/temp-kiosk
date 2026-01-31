@@ -1,4 +1,4 @@
-#include "my_time.h"
+#include "cross_time.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -7,7 +7,7 @@
 #include "my_types.h"
 
 #ifdef __linux__
-int get_my_datetime(my_time *mt) {
+int get_my_datetime(cross_time *mt) {
     i64 t = time(NULL);
 
     struct tm *tm = localtime(&t);
@@ -23,7 +23,7 @@ int get_my_datetime(my_time *mt) {
         return -1;
     }
 
-    *mt = (my_time) {
+    *mt = (cross_time) {
         .month = tm->tm_mon + 1,
         .day = tm->tm_mday,
         .year = tm->tm_year + 1900,

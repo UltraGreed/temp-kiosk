@@ -12,10 +12,10 @@
 #include <semaphore.h>
 #include <sys/mman.h>
 
-#include "crossbg.h"
-#include "logger.h"
-#include "my_time.h"
 #include "my_types.h"
+#include "cross_bg.h"
+#include "cross_time.h"
+#include "logger.h"
 
 static volatile sig_atomic_t is_working = true;
 static f32 IDLE_INTER = 0.016;
@@ -49,7 +49,7 @@ static f32 COPY2_DELAY = 2.0;
     } while (0);
 
 int write_start_copy(const char *fname, int n_copy) {
-    my_time t;
+    cross_time t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -62,7 +62,7 @@ int write_start_copy(const char *fname, int n_copy) {
 }
 
 int write_exit_copy(const char *fname, int n_copy) {
-    my_time t;
+    cross_time t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -77,7 +77,7 @@ int write_exit_copy(const char *fname, int n_copy) {
 /// Write pid, current date and counter.
 /// Return 0 on success, -1 on error.
 int write_info(const char *fname, i32 ctr) {
-    my_time t;
+    cross_time t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");
@@ -91,7 +91,7 @@ int write_info(const char *fname, i32 ctr) {
 }
 
 int write_copies_still_running(const char *fname) {
-    my_time t;
+    cross_time t;
     int time_res = get_my_datetime(&t);
     if (time_res == -1) {
         perror("Unable to get time");

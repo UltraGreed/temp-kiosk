@@ -1,11 +1,11 @@
-project('crossbg', 'c')
+project('cross_utils', 'c')
 
 inc = include_directories('.')
 
 lib = static_library(
-  'crossbg',
-  'crossbg.c',
-  'my_time.c',
+  'cross_utils',
+  'cross_bg.c',
+  'cross_time.c',
   include_directories: inc,
 )
 

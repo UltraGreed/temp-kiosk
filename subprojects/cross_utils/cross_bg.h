@@ -1,5 +1,5 @@
-#ifndef crossbg_h
-#define crossbg_h
+#ifndef cross_bg_h
+#define cross_bg_h
 
 #include "my_types.h"
 #include <signal.h>

@@ -1,4 +1,4 @@
-#include "crossbg.h"
+#include "cross_bg.h"
 
 #ifdef __linux__
 #include <errno.h>
@@ -18,7 +18,7 @@
 #endif
 
 #include "my_types.h"
-#include "my_time.h"
+#include "cross_time.h"
 
 #ifdef __linux__
 usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
