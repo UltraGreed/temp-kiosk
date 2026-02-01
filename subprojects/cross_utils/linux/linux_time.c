@@ -36,3 +36,21 @@ f64 get_secs(void) {
     assert(clock_res == 0);
     return tp.tv_sec + tp.tv_nsec * 1e-9;
 }
+
+int scan_date(char *s, struct tm *tm) {
+    int year, month, day, hours, minutes, seconds;
+
+    int res = sscanf(s, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hours, &minutes, &seconds);
+    if (res != 6) 
+        return -1;
+    
+    tm->tm_year = year - 1900;
+    tm->tm_mon = month - 1;
+    tm->tm_mday = day;
+    tm->tm_hour = hours;
+    tm->tm_min = minutes;
+    tm->tm_sec = seconds;
+    tm->tm_isdst = -1;
+
+    return 0;
+}

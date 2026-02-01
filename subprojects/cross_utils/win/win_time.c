@@ -44,3 +44,20 @@ f64 get_secs(void) {
 
     return t_ns * 1e-7;
 }
+
+int scan_date(char *s, struct tm *tm) {
+    int year, month, day, hours, minutes, seconds;
+
+    int res = sscanf(s, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hours, &minutes, &seconds);
+    if (res != 6) 
+        return -1;
+    
+    tm->tm_year = year - 1900;
+    tm->tm_mon = month - 1;
+    tm->tm_mday = day;
+    tm->tm_hour = hours;
+    tm->tm_min = minutes;
+    tm->tm_sec = seconds;
+
+    return 0;
+}

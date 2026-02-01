@@ -2,23 +2,29 @@ project('cross_utils', 'c')
 
 inc = include_directories('.')
 
+common_src = [
+  'utils/files_utils.c',
+  'utils/str_utils.c',
+]
+
 if host_machine.system() == 'linux'
   platform_src = [
-    'linux_bg.c',
-    'linux_time.c',
-    'linux_mem.c',
+    'linux/linux_bg.c',
+    'linux/linux_time.c',
+    'linux/linux_mem.c',
   ]
 else
   platform_src = [
-    'win_bg.c',
-    'win_time.c',
-    'win_mem.c',
+    'win/win_bg.c',
+    'win/win_time.c',
+    'win/win_mem.c',
   ]
 endif
     
 lib = static_library(
   'cross_utils',
   platform_src,
+  common_src,
   include_directories: inc,
 )
 

@@ -1,6 +1,7 @@
-#include <string.h>
-#include <stdbool.h>
+#include "str_utils.h"
 
+#include <stdbool.h>
+#include <string.h>
 
 bool starts_with(const char *str, const char *prefix) {
     return strncmp(prefix, str, strlen(prefix)) == 0;

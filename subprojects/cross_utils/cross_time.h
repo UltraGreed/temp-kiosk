@@ -1,6 +1,7 @@
 #pragma once
 
 #include "my_types.h"
+#include "time.h"
 
 typedef struct {
     u8 month;
@@ -20,3 +21,4 @@ int get_my_datetime(TIME_S *mt);
 f64 get_secs(void);
 
 
+int scan_date(char *s, struct tm *tm);
