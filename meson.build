@@ -12,9 +12,9 @@ if m_dep.found()
   add_project_link_arguments('-lm', language : 'c')
 endif
 
-dependencies = [
-  subproject('cross_utils').get_variable('dep'),
-]
+cross_utils_dep = subproject('cross_utils').get_variable('dep')
+
+sqlite3_dep = subproject('sqlite3').get_variable('sqlite3_dep')
 
 src_logger = [
   'src/logger/logger.c',
@@ -23,7 +23,7 @@ src_logger = [
 logger_exe = executable(
   'logger',
   src_logger,
-  dependencies : dependencies,
+  dependencies : cross_utils_dep,
   install : true,
 )
 
@@ -34,7 +34,7 @@ src_logger_cli = [
 logger_cli_exe = executable(
   'logger_cli',
   src_logger_cli,
-  dependencies : dependencies,
+  dependencies : cross_utils_dep,
   install : true,
 )
 
@@ -45,9 +45,10 @@ src_temp_emulator = [
 temp_emulator_exe = executable(
   'emulator',
   src_temp_emulator,
-  dependencies : dependencies,
+  dependencies : cross_utils_dep,
   install : true,
 )
+
 
 temp_logger_src = [
   'src/temp_logger/temp_logger.c',
@@ -56,6 +57,7 @@ temp_logger_src = [
 temp_logger_exe = executable(
   'temp_logger',
   temp_logger_src,
-  dependencies : dependencies,
+  dependencies : [cross_utils_dep, sqlite3_dep],
   install : true,
 )
+

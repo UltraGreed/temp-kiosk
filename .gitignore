@@ -1,3 +1,6 @@
 .cache
 build*
 subprojects/.wraplock
+subprojects/sqlite-*
+subprojects/packagecache
+compile_commands.json
