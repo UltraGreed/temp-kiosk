@@ -3,19 +3,19 @@ project('cross_utils', 'c')
 inc = include_directories('.')
 
 common_src = [
-  'utils/files_utils.c',
+  'utils/file_utils.c',
   'utils/str_utils.c',
 ]
 
 if host_machine.system() == 'linux'
   platform_src = [
-    'linux/linux_bg.c',
+    'linux/linux_process.c',
     'linux/linux_time.c',
     'linux/linux_mem.c',
   ]
 else
   platform_src = [
-    'win/win_bg.c',
+    'win/win_process.c',
     'win/win_time.c',
     'win/win_mem.c',
   ]
@@ -35,7 +35,7 @@ dep = declare_dependency(
 
 test_exe = executable(
   'test1',
-  'test1.c',
+  'tests/test1.c',
   link_with: lib,
 )
 

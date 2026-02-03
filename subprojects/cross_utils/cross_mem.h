@@ -1,57 +1,56 @@
 #pragma once
 
-#ifdef __linux__ 
+#ifdef __linux__
 #include <semaphore.h>
-typedef int MEM_SHM_FD;
-typedef sem_t *MEM_SEM;
+typedef int SharedMemory;
+typedef sem_t *Semaphore;
 #else
 #include <windows.h>
-typedef HANDLE MEM_SHM_FD;
-typedef HANDLE MEM_SEM;
+typedef HANDLE SharedMemory;
+typedef HANDLE Semaphore;
 #endif
 
-#include "my_types.h"
-
+#include "utils/my_types.h"
 
 /// Return -1 on error, 1 if shared memory exists, 0 otherwise
-int mem_shm_exists(const char *shm_name);
+int is_exist_shared_mem(const char *name);
 
 /// Open shared memory
 /// Return (MEM_SHM) -1 on error, address to fd otherwise
-MEM_SHM_FD mem_shm_open(const char *shm_name, usize shm_size);
+SharedMemory open_shared_mem(const char *name, usize size);
 
 /// Close shared memory
 /// Return -1 on error, 0 otherwise
-int mem_shm_close(MEM_SHM_FD shm_fd);
+int close_shared_mem(SharedMemory shm);
 
 /// Delete shared memory file
 /// Return -1 on error, 0 otherwise
-int mem_shm_unlink(const char *shm_name);
+int unlink_shared_mem(const char *name);
 
 /// Map shared memory to local memory
 /// Return (void *) -1 on error, address otherwise
-void *mem_mmap(MEM_SHM_FD shm_fd, usize shm_size);
+void *map_shared_mem(SharedMemory shm, usize size);
 
-/// Unmap mapped shared memory 
+/// Unmap mapped shared memory
 /// Return -1 on error, 0 otherwise
-int mem_munmap(void *addr, usize shm_size);
+int unmap_shared_mem(void *addr, usize shm_size);
 
 /// Open named semaphore or init it with initial value
 /// Return (MEM_SEM) -1 on error, 0 otherwise
-MEM_SEM mem_sem_open(const char *name, int value);
+Semaphore open_semaphore(const char *name, int value);
 
 /// Close named semaphore
 /// Return (void *) -1 on error, 0 otherwise
-int mem_sem_close(MEM_SEM sem);
+int close_semaphore(Semaphore sem);
 
 /// Reduce semaphore value by 1 if it's positive, wait and reduce otherwise
 /// Return -1 on error, 0 otherwise
-int mem_sem_wait(MEM_SEM mem_sem);
+int wait_semaphore(Semaphore sem);
 
 /// Increase semaphore value by 1
 /// Return -1 on error, 0 otherwise
-int mem_sem_post(MEM_SEM mem_sem);
+int post_semaphore(Semaphore sem);
 
 /// Unlink named semaphore
 /// Return -1 on error, 0 otherwise
-int mem_sem_unlink(const char *name);
+int unlink_semaphore(const char *name);

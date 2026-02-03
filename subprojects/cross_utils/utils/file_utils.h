@@ -1,7 +1,7 @@
+#include "utils/my_types.h"
 #include <stdio.h>
-#include "my_types.h"
 
-/// Return n digits before dot in x
+/// Count digits in integer part of x
 usize flen(f64 x);
 
 /// Open file or exit if failed

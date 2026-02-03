@@ -6,6 +6,8 @@ project(
   default_options : ['warning_level=3'],
 )
 
+use_db = false
+
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required : false)
 if m_dep.found()
@@ -49,15 +51,26 @@ temp_emulator_exe = executable(
   install : true,
 )
 
-
 temp_logger_src = [
   'src/temp_logger/temp_logger.c',
 ]
 
+if use_db
+  temp_logger_logging_src = 'src/temp_logger/logger_db.c'
+else
+  temp_logger_logging_src = 'src/temp_logger/logger_fs.c'
+endif
+
 temp_logger_exe = executable(
   'temp_logger',
   temp_logger_src,
+  temp_logger_logging_src,
   dependencies : [cross_utils_dep, sqlite3_dep],
   install : true,
 )
 
+if use_db
+  message('Temp logger built with database support.')
+else
+  message('Temp logger built with filesystem support.')
+endif

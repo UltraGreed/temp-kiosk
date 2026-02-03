@@ -1,16 +1,19 @@
-#include "cross_bg.h"
+#define CROSS_PROCESS_IMPL
+#include "cross_process.h"
+#undef CROSS_PROCESS_IMPL
 
+#include <errhandlingapi.h>
 #include <handleapi.h>
+#include <processthreadsapi.h>
 #include <synchapi.h>
+#include <windows.h>
 #include <winerror.h>
 #include <winnt.h>
-#include <errhandlingapi.h>
-#include <processthreadsapi.h>
-#include <windows.h>
 
-#include "my_types.h"
+#include "utils/my_types.h"
 
-static char *join_strings(char *const strings[]) {
+static char *join_strings(char *const strings[])
+{
     usize total_len = 0;
     for (char *const *arg = strings; *arg != NULL; arg++)
         total_len += strlen(*arg) + 1;
@@ -32,7 +35,8 @@ static char *join_strings(char *const strings[]) {
     return new_str;
 }
 
-usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
+usize start_process(Process *proc, const char *command, char *const argv[])
+{
     STARTUPINFO si = {0};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {0};
@@ -47,8 +51,9 @@ usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
     return 0;
 }
 
-BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
-    BG_WRES res;
+ProcessWaitResult wait_process(Process proc, f64 timeout, i32 *status)
+{
+    ProcessWaitResult res;
     if (timeout == 0)
         timeout = INFINITE;
 
@@ -76,13 +81,9 @@ end:
     return res;
 }
 
-usize bg_kill(proc_t proc) {
+usize kill_process(Process proc)
+{
     if (!TerminateProcess(proc, STATUS_CONTROL_C_EXIT))
         return GetLastError();
     return 0;
-}
-
-bool is_proc_running(proc_t proc) {
-    BG_WRES w_res = bg_wait(proc, 1e-5, NULL);
-    return w_res == BG_WTIMEOUT;
 }

@@ -1,63 +1,29 @@
+#define CROSS_TIME_IMPL
 #include "cross_time.h"
+#undef CROSS_TIME_IMPL
 
-#include <minwindef.h>
-#include <stdio.h>
-#include <sysinfoapi.h>
-#include <time.h>
+#include <windows.h>
 
 
-int get_my_datetime(TIME_S *mt) {
-    i64 t = time(NULL);
+// #define WIN_MORON1 10000
+//                    13414581552139
+// #define WIN_MORON2 116444736000000000LL
+#define WIN_MORON 116444736000000000LL
 
-    struct tm *tm = localtime(&t);
-    if (tm == NULL) {
-        perror("Unable to get localtime");
-        return -1;
-    }
-
+f64 get_secs(void)
+{
     FILETIME ft;
-    usize t_ns = 0;
     GetSystemTimeAsFileTime(&ft);
-    t_ns |= ft.dwHighDateTime;
-    t_ns <<= 32;
-    t_ns |= ft.dwLowDateTime;
 
-    *mt = (TIME_S) {
-        .month = tm->tm_mon + 1,
-        .day = tm->tm_mday,
-        .year = tm->tm_year + 1900,
-        .hours = tm->tm_hour,
-        .mins = tm->tm_min,
-        .secs = tm->tm_sec + t_ns % 10000000 * 1e-7,
-    };
-    return 0;
-}
-
-
-f64 get_secs(void) {
-    FILETIME ft;
-    usize t_ns = 0;
-    GetSystemTimeAsFileTime(&ft);
-    t_ns |= ft.dwHighDateTime;
-    t_ns <<= 32;
-    t_ns |= ft.dwLowDateTime;
-
-    return t_ns * 1e-7;
-}
-
-int scan_date(char *s, struct tm *tm) {
-    int year, month, day, hours, minutes, seconds;
-
-    int res = sscanf(s, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hours, &minutes, &seconds);
-    if (res != 6) 
-        return -1;
+    usize ticks = 0;
+    ticks |= ft.dwHighDateTime;
+    ticks <<= 32;
+    ticks |= ft.dwLowDateTime;
     
-    tm->tm_year = year - 1900;
-    tm->tm_mon = month - 1;
-    tm->tm_mday = day;
-    tm->tm_hour = hours;
-    tm->tm_min = minutes;
-    tm->tm_sec = seconds;
+    // i64 millis = ticks / WIN_MORON1;
+    // printf("Current millis: %lld\n", millis);
+    f64 secs = (ticks - WIN_MORON) * 1e-7;
 
-    return 0;
-}
+    printf("Current secs: %f\n", secs);
+    return secs;
+} 

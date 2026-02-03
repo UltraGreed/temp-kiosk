@@ -8,8 +8,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "my_types.h"
-#include "utils/files_utils.h"
+#include "utils/my_types.h"
+#include "utils/file_utils.h"
 
 #define TEMP_MIN 15.0
 #define TEMP_MAX 25.0

@@ -1,16 +1,19 @@
-#include "cross_bg.h"
+#define CROSS_PROCESS_IMPL
+#include "cross_process.h"
+#undef CROSS_PROCESS_IMPL
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <fcntl.h>
 
-#include "my_types.h"
 #include "cross_time.h"
+#include "utils/my_types.h"
 
-usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
+usize start_process(Process *proc, const char *command, char *const argv[])
+{
     i32 pipefd[2];
     pipe(pipefd);
 
@@ -45,7 +48,8 @@ usize bg_start(proc_t *proc, const char *command, char *const argv[]) {
     return 0;
 }
 
-BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
+ProcessWaitResult wait_process(Process proc, f64 timeout, i32 *status)
+{
     i32 wstatus;
 
     f64 time_start = get_secs();
@@ -63,13 +67,9 @@ BG_WRES bg_wait(proc_t proc, f64 timeout, i32 *status) {
     return BG_WTIMEOUT;
 }
 
-usize bg_kill(proc_t proc) {
+usize kill_process(Process proc)
+{
     if (kill(proc, SIGINT) == 0)
         return 0;
     return errno;
-}
-
-bool is_proc_running(proc_t proc) {
-    BG_WRES w_res = bg_wait(proc, 1e-5, NULL);
-    return w_res == BG_WTIMEOUT;
 }

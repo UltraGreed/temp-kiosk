@@ -7,8 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "my_types.h"
-#include "cross_bg.h"
+#include "utils/my_types.h"
+#include "cross_process.h"
 #include "cross_time.h"
 #include "cross_mem.h"
 #include "utils/str_utils.h"
@@ -46,8 +46,8 @@ static f32 COPY2_DELAY = 2.0;
     } while (0);
 
 int write_start_copy(const char *fname, int n_copy) {
-    TIME_S t;
-    int time_res = get_my_datetime(&t);
+    DateTime t;
+    int time_res = get_datetime_now(&t);
     if (time_res == -1) {
         perror("Unable to get time");
         return -1;
@@ -59,8 +59,8 @@ int write_start_copy(const char *fname, int n_copy) {
 }
 
 int write_exit_copy(const char *fname, int n_copy) {
-    TIME_S t;
-    int time_res = get_my_datetime(&t);
+    DateTime t;
+    int time_res = get_datetime_now(&t);
     if (time_res == -1) {
         perror("Unable to get time");
         return -1;
@@ -74,8 +74,8 @@ int write_exit_copy(const char *fname, int n_copy) {
 /// Write pid, current date and counter.
 /// Return 0 on success, -1 on error.
 int write_info(const char *fname, i32 ctr) {
-    TIME_S t;
-    int time_res = get_my_datetime(&t);
+    DateTime t;
+    int time_res = get_datetime_now(&t);
     if (time_res == -1) {
         perror("Unable to get time");
         return -1;
@@ -88,8 +88,8 @@ int write_info(const char *fname, i32 ctr) {
 }
 
 int write_copies_still_running(const char *fname) {
-    TIME_S t;
-    int time_res = get_my_datetime(&t);
+    DateTime t;
+    int time_res = get_datetime_now(&t);
     if (time_res == -1) {
         perror("Unable to get time");
         return -1;
@@ -155,7 +155,7 @@ int main(int argc, const char *argv[]) {
 
     // ref_ctr counter
     // [xxxx]  [xxxx]  
-    int shm_existed = mem_shm_exists(LOGGER_SHM_NAME);
+    int shm_existed = is_exist_shared_mem(LOGGER_SHM_NAME);
     if (shm_existed == -1) {
         perror("Unable to create shared memory");
         exit_code = 1;
@@ -169,8 +169,8 @@ int main(int argc, const char *argv[]) {
         goto cleanup;
     }
 
-    MEM_SHM_FD shm_fd = mem_shm_open(LOGGER_SHM_NAME, LOGGER_SHM_LEN);
-    if (shm_fd == (MEM_SHM_FD) -1) {
+    SharedMemory shm_fd = open_shared_mem(LOGGER_SHM_NAME, LOGGER_SHM_LEN);
+    if (shm_fd == (SharedMemory) -1) {
         perror("Unable to create shared memory");
         exit_code = 1;
         goto cleanup;
@@ -180,7 +180,7 @@ int main(int argc, const char *argv[]) {
     bool is_origin_inst = !shm_existed;
 
     // Mapping shm to memory
-    void *addr = mem_mmap(shm_fd, LOGGER_SHM_LEN);
+    void *addr = map_shared_mem(shm_fd, LOGGER_SHM_LEN);
     if (addr == (void *)-1) {
         perror("Unable to map shared memory");
         exit_code = 1;
@@ -191,7 +191,7 @@ int main(int argc, const char *argv[]) {
     i32 *ref_ctr = addr;
     i32 *ctr = (i32 *)addr + 1;
     
-    MEM_SEM sem = mem_sem_open(LOGGER_SEM_NAME, 1);
+    Semaphore sem = open_semaphore(LOGGER_SEM_NAME, 1);
     if (sem == (void *) -1) {
         perror("Unable to create or open semaphore");
         exit_code = 1;
@@ -204,14 +204,14 @@ int main(int argc, const char *argv[]) {
     }
     sem_loaded = true;
 
-    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+    TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
     *ref_ctr += 1;
-    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+    TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
 
-    proc_t cli_proc;
+    Process cli_proc;
     if (logger_mode == MODE_MAIN) {
         // Starting CLI subprocess
-        usize bg_start_res = bg_start(&cli_proc, LOGGER_CLI_CMD, (char *const[]){LOGGER_CLI_CMD, NULL});
+        usize bg_start_res = start_process(&cli_proc, LOGGER_CLI_CMD, (char *const[]){LOGGER_CLI_CMD, NULL});
         if (bg_start_res != 0) {
             fprintf(stderr, "Unable to start child process: %lu %s\n", bg_start_res, strerror(bg_start_res));
             goto cleanup;
@@ -222,34 +222,34 @@ int main(int argc, const char *argv[]) {
         f64 copy_secs = get_secs();
         f64 ctr_secs = get_secs();
         bool copies_started = false;
-        proc_t copy1_proc, copy2_proc;
+        Process copy1_proc, copy2_proc;
         while (is_working) { // Main loop
             if (is_origin_inst) {
                 if (get_secs() - ctr_secs >= CTR_INTER) {
                     ctr_secs = get_secs();
-                    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+                    TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
                     *ctr += 1;
-                    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+                    TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
                 }
                 if (get_secs() - log_secs >= LOG_INTER) {
                     log_secs = get_secs();
 
-                    TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+                    TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
                     TRY_OR_CLEANUP(write_info(fname, *ctr), "Unable to write to log");
-                    TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+                    TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
                 }
                 if (get_secs() - copy_secs >= COPY_INTER) {
                     copy_secs = get_secs();
-                    if (copies_started && (is_proc_running(copy1_proc) || is_proc_running(copy2_proc))) {
+                    if (copies_started && (is_process_running(copy1_proc) || is_process_running(copy2_proc))) {
                         write_copies_still_running(fname);
                     } else {
-                        int start_copy1_res = bg_start(&copy1_proc, LOGGER_CMD,
+                        int start_copy1_res = start_process(&copy1_proc, LOGGER_CMD,
                                                        (char *const[]){LOGGER_CMD, "--mode=copy1", fname, NULL});
                         if (start_copy1_res != 0) {
                             perror("Unable to start copy1");
                             goto cleanup;
                         }
-                        int start_copy2_res = bg_start(&copy2_proc, LOGGER_CMD,
+                        int start_copy2_res = start_process(&copy2_proc, LOGGER_CMD,
                                                        (char *const[]){LOGGER_CMD, "--mode=copy2", fname, NULL});
                         if (start_copy2_res != 0) {
                             perror("Unable to start copy2");
@@ -259,61 +259,60 @@ int main(int argc, const char *argv[]) {
                     }
                 }
             } else { // At least one --mode=main is already running --- just wait
-                TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+                TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
                 if (*ref_ctr == 1) { // If all the other mains die, become new main
                     is_origin_inst = true;
                     log_secs = 0;
                     copy_secs = 0;
                 }
-                TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+                TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
             }
             sleep(IDLE_INTER);
         }
         printf("Log writing finished.\n");
     } else if (logger_mode == MODE_COPY1) {
-        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
         write_start_copy(fname, 1);
         *ctr += 10;
         write_exit_copy(fname, 1);
-        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
     } else {
-        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
         write_start_copy(fname, 2);
         *ctr *= 2;
-        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
 
         sleep(COPY2_DELAY);
 
-        TRY_OR_CLEANUP(mem_sem_wait(sem), "Unable to wait for semaphore");
+        TRY_OR_CLEANUP(wait_semaphore(sem), "Unable to wait for semaphore");
         *ctr /= 2;
         write_exit_copy(fname, 2);
-        TRY_OR_CLEANUP(mem_sem_post(sem), "Unable to post semaphore");
+        TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
     }
 
 
 cleanup:
     if (cli_started)
-        bg_kill(cli_proc);
+        kill_process(cli_proc);
     if (sem_loaded) {
-        int sem_wait_res = mem_sem_wait(sem);
+        int sem_wait_res = wait_semaphore(sem);
         assert(sem_wait_res == 0); // If it fails, it fails...
         *ref_ctr -= 1;
         bool last_ref = *ref_ctr == 0;
-        int sem_post_res = mem_sem_post(sem);
+        int sem_post_res = post_semaphore(sem);
         assert(sem_post_res == 0);
 
-        mem_sem_close(sem);
+        close_semaphore(sem);
         if (last_ref) {
             printf("PID: %d cleared sem and shm\n", getpid());
-            mem_sem_unlink(LOGGER_SEM_NAME);
-            mem_shm_unlink(LOGGER_SHM_NAME);
+            unlink_semaphore(LOGGER_SEM_NAME);
+            unlink_shared_mem(LOGGER_SHM_NAME);
         }
     }
     if (mmapped)
-        mem_munmap(addr, LOGGER_SHM_LEN);
+        unmap_shared_mem(addr, LOGGER_SHM_LEN);
     if (shm_opened)
-        mem_shm_close(shm_fd);
-
+        close_shared_mem(shm_fd);
 
     return exit_code;
 }

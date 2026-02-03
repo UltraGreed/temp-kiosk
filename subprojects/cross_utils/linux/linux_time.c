@@ -1,56 +1,17 @@
-#include <cross_time.h>
-#include <stdio.h>
-#include <time.h>
+#define CROSS_TIME_IMPL
+#include "cross_time.h"
+#undef CROSS_TIME_IMPL
+
 #include <assert.h>
+#include <sys/time.h>
+#include <math.h>
 
-int get_my_datetime(TIME_S *mt) {
-    i64 t = time(NULL);
+f64 get_secs(void)
+{
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) == -1) 
+        return INFINITY;
 
-    struct tm *tm = localtime(&t);
-    if (tm == NULL) {
-        perror("Unable to get localtime");
-        return -1;
-    }
-
-    struct timespec tp;
-    int clock_res = clock_gettime(CLOCK_MONOTONIC, &tp);
-    if (clock_res == -1) {
-        perror("Unable to get clock time");
-        return -1;
-    }
-
-    *mt = (TIME_S) {
-        .month = tm->tm_mon + 1,
-        .day = tm->tm_mday,
-        .year = tm->tm_year + 1900,
-        .hours = tm->tm_hour,
-        .mins = tm->tm_min,
-        .secs = tm->tm_sec + (tp.tv_nsec % 1000000000) * 1e-9,
-    };
-    return 0;
+    return tv.tv_sec + tv.tv_usec * 1e-6;
 }
 
-f64 get_secs(void) {
-    struct timespec tp;
-    int clock_res = clock_gettime(CLOCK_MONOTONIC, &tp);
-    assert(clock_res == 0);
-    return tp.tv_sec + tp.tv_nsec * 1e-9;
-}
-
-int scan_date(char *s, struct tm *tm) {
-    int year, month, day, hours, minutes, seconds;
-
-    int res = sscanf(s, "%d-%d-%d %d:%d:%d", &year, &month, &day, &hours, &minutes, &seconds);
-    if (res != 6) 
-        return -1;
-    
-    tm->tm_year = year - 1900;
-    tm->tm_mon = month - 1;
-    tm->tm_mday = day;
-    tm->tm_hour = hours;
-    tm->tm_min = minutes;
-    tm->tm_sec = seconds;
-    tm->tm_isdst = -1;
-
-    return 0;
-}
