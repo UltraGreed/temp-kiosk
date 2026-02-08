@@ -1,10 +1,13 @@
-project('cross_utils', 'c')
+project(
+  'cross_utils', 
+  'c',
+  default_options : ['warning_level=everything', 'werror=true', 'c_std=c99'],
+)
 
 inc = include_directories('.')
 
 common_src = [
-  'utils/file_utils.c',
-  'utils/str_utils.c',
+  'utils.c',
 ]
 
 if host_machine.system() == 'linux'

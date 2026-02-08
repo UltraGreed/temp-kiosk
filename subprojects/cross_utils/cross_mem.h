@@ -10,7 +10,8 @@ typedef HANDLE SharedMemory;
 typedef HANDLE Semaphore;
 #endif
 
-#include "utils/my_types.h"
+#include "my_types.h"
+#include "utils.h"
 
 /// Return -1 on error, 1 if shared memory exists, 0 otherwise
 int is_exist_shared_mem(const char *name);

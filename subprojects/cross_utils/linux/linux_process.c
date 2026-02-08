@@ -8,9 +8,11 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <time.h>
 
+#include "my_types.h"
 #include "cross_time.h"
-#include "utils/my_types.h"
+#include "utils.h"
 
 usize start_process(Process *proc, const char *command, char *const argv[])
 {

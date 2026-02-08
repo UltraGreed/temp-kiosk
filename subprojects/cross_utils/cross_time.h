@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/my_types.h"
+#include "my_types.h"
 #include <time.h>
 
 typedef struct {

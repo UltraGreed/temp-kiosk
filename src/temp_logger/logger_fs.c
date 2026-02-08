@@ -6,24 +6,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
+#include "my_types.h"
 #include "cross_time.h"
 #include "temp_logger.h"
-#include "utils/file_utils.h"
+#include "utils.h"
 
-#define LINE_LEN (DATE_LEN + MSG_LEN + 3)  // Including \n
+#define LINE_LEN (DATE_LEN + MSG_LEN + 3) // Including \n
 #define LOG1_NAME "log1.txt"
 #define LOG2_NAME "log2.txt"
 #define LOG3_NAME "log3.txt"
 
 #define RW_BUF_SIZE 1024
+#define MAX_PATH_LEN 256
 
+// TODO: it possibly would be better to create Log abstraction instead of Logger abstraction.
+// That would allow to call same function (e.g. get_avg_log(Log *log)) for all 3 logs from main file
+// Probably something along "Log *init_log(Logger *logger, usize log_i)" would fit
 struct Logger {
     FILE *log1;
 
-    char *log1_path;
-    char *log2_path;
-    char *log3_path;
+    char log1_path[MAX_PATH_LEN + 1];
+    char log2_path[MAX_PATH_LEN + 1];
+    char log3_path[MAX_PATH_LEN + 1];
 
     f64 log1_first_time;
 };

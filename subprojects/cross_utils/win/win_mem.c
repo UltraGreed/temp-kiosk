@@ -10,7 +10,7 @@
 #include <winerror.h>
 #include <winnt.h>
 
-#include "utils/my_types.h"
+#include "utils.h"
 
 int is_exist_shared_mem(const char *name)
 {

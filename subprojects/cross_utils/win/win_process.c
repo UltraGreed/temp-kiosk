@@ -10,7 +10,7 @@
 #include <winerror.h>
 #include <winnt.h>
 
-#include "utils/my_types.h"
+#include "utils.h"
 
 static char *join_strings(char *const strings[])
 {
@@ -19,7 +19,7 @@ static char *join_strings(char *const strings[])
         total_len += strlen(*arg) + 1;
     total_len--;
 
-    char *new_str = malloc(sizeof(char) * (total_len + 1));
+    char *new_str = xmalloc(sizeof(char) * (total_len + 1));
     new_str[total_len] = '\0';
 
     char *cur_sym = new_str;

@@ -2,8 +2,8 @@
 
 #include <stdio.h>
 
+#include "utils.h"
 #include "cross_mem.h"
-#include "utils/my_types.h"
 #include "stdlib.h"
 #include "string.h"
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "utils/my_types.h"
+#include "my_types.h"
+#include "utils.h"
 
 #ifdef __linux__
 #include <time.h>

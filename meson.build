@@ -3,10 +3,10 @@ project(
   'c',
   meson_version : '>= 1.3.0',
   version : '0.1',
-  default_options : ['warning_level=3'],
+  default_options : ['warning_level=everything', 'werror=true', 'c_std=c99'],
 )
 
-use_db = false
+use_db = true
 
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required : false)

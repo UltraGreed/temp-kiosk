@@ -8,13 +8,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "utils/my_types.h"
-#include "utils/file_utils.h"
+#include "my_types.h"
+#include "utils.h"
 
 #define TEMP_MIN 15.0
 #define TEMP_MAX 25.0
 #define MAX_CHANGE 0.5
-#define MAX_BIAS 0.1
+#define MAX_BIAS 0.01
 #define MSG_INTER 1.0
 #define MSG_LEN 8
 
