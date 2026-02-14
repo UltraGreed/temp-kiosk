@@ -1,7 +1,23 @@
 project(
   'cross_utils', 
   'c',
-  default_options : ['warning_level=everything', 'werror=true', 'c_std=c99'],
+  default_options : ['warning_level=2', 'werror=true', 'c_std=gnu99'],
+)
+
+cc = meson.get_compiler('c')
+
+# Suppress silly warnings
+add_project_arguments(
+    cc.get_supported_arguments([
+            '-Wno-padded',
+            '-Wformat-truncation=1',
+            '-Wno-arith-conversion',
+            '-Wno-c++-compat',
+            '-Wno-sign-conversion',
+            '-Wno-sign-compare',
+            '-ferror-limit=0',
+    ]),
+    language : 'c'
 )
 
 inc = include_directories('.')

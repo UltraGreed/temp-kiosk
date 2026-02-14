@@ -5,16 +5,16 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <time.h>
 
 #include "my_types.h"
 #include "cross_time.h"
 #include "utils.h"
 
-usize start_process(Process *proc, const char *command, char *const argv[])
+usize start_process(Process *proc, const char *command, const char *const argv[])
 {
     i32 pipefd[2];
     pipe(pipefd);
@@ -26,7 +26,8 @@ usize start_process(Process *proc, const char *command, char *const argv[])
         return errno;
     } else if (forkres == 0) { // child
         close(pipefd[0]);
-        if (execvp(command, argv) == -1) {
+
+        if (execvp(command, (char *const *) argv) == -1) {
             i32 err = errno;
             write(pipefd[1], &err, sizeof(err));
             _exit(127);

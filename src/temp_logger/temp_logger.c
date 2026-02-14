@@ -1,11 +1,4 @@
-/// This logger attempts to use a ring-buffer-like logic for log 1:
-/// if the first entry in the log is older than maximum allowed period of time,
-/// it starts to rewrite log from there line by line, until it reaches end of file.
-///
-/// Whenever the end of file is reached, first entry of the log is checked on timeout again.
-/// At the end of the execution all the lines in the logger are shifted to be sorted by date.
-///
-/// Logs 2 and 3 are sorted after each write.
+#include "temp_logger.h"
 
 #include <assert.h>
 #include <math.h>
@@ -18,9 +11,22 @@
 
 #include "cross_time.h"
 #include "logger_interface.h"
-#include "temp_logger.h"
-#include "utils/file_utils.h"
-#include "utils/str_utils.h"
+#include "my_types.h"
+#include "utils.h"
+
+#ifdef USEDB
+static char *log_args[] = {
+    TABLE_NAME_LOG1,
+    TABLE_NAME_LOG2,
+    TABLE_NAME_LOG3,
+};
+#else
+static char *log_args[] = {
+    FILE_NAME_LOG1,
+    FILE_NAME_LOG2,
+    FILE_NAME_LOG3,
+};
+#endif
 
 static bool is_working = true;
 void sigint_handler(int sig)
@@ -29,12 +35,12 @@ void sigint_handler(int sig)
     is_working = false;
 }
 
-void skip_msg(FILE *dev_file)
+void skip_till_value(FILE *dev_file)
 {
     while (fgetc(dev_file) != DELIM) {};
 }
 
-void skip_old_msg(FILE *dev_file)
+void skip_old_values(FILE *dev_file)
 {
     time_t t = time(NULL);
     while (t == time(NULL))
@@ -45,6 +51,9 @@ void skip_old_msg(FILE *dev_file)
 /// Return 0 on success, -1 on error;
 int read_value(FILE *dev, f64 *value)
 {
+    *value = 15.0 + (f64) rand() / RAND_MAX * 3;
+    sleep(1);
+    return 0;
     char temp_str[MSG_LEN + 1];
     void *res = fgets(temp_str, MSG_LEN + 1, dev);
     if (res == NULL) {
@@ -54,7 +63,7 @@ int read_value(FILE *dev, f64 *value)
 
     if (temp_str[MSG_LEN - 1] != DELIM) {
         perror("Damaged message length from device");
-        skip_msg(dev); // Skip all bytes till delim (including)
+        skip_till_value(dev); // Skip all bytes till delim (including)
         return -1;
     }
 
@@ -68,21 +77,53 @@ int read_value(FILE *dev, f64 *value)
     return 0;
 }
 
+int write_log_with_avg(Log *log_out, Log *log_in, f64 avg_period, f64 keep_period, DateTime *date)
+{
+    f64 avg = get_avg_log(log_in, avg_period, date);
+    if (avg == INFINITY) {
+        fprintf(stderr, "Failed to get average from log!\n");
+        return -1;
+    }
+    int res = write_log(log_out, avg, date, keep_period);
+    if (res == -1) {
+        fprintf(stderr, "Failed to write to log!\n");
+        return -1;
+    }
+    return 0;
+}
+
+int delete_old_logs_entries(Log **logs, DateTime *date)
+{
+    int res1 = delete_old_entries(logs[0], date, MAX_KEEP_LOG1);
+    int res2 = delete_old_entries(logs[1], date, MAX_KEEP_LOG2);
+    int res3 = delete_old_entries(logs[2], date, MAX_KEEP_LOG3);
+    return (res1 == 0) && (res2 == 0) && (res3 == 0);
+}
+
 int main(int argc, char *argv[])
 {
+    int res;
     if (argc != 3) {
-        fprintf(stderr, "Usage: temp_logger DEVICE LOG_PATH (db or dir)\n");
+        fprintf(stderr, "Usage: temp_logger DEVICE LOG_PATH\n");
         exit(2);
     }
     signal(SIGINT, sigint_handler);
 
     const char *dev_name = argv[1];
-    FILE *dev_file = fopen_or_exit(dev_name, "r");
+    FILE *dev_file = xfopen(dev_name, "r");
 
-    Logger *logger = create_logger(&argv[2], get_secs());
+    Log *logs[3];
+    for (int i = 0; i < 3; i++)
+        logs[i] = init_log(argv[2], log_args[i]);
 
-    skip_old_msg(dev_file);
-    skip_msg(dev_file);
+    DateTime date;
+    get_datetime_now(&date);
+    delete_old_logs_entries(logs, &date);
+    
+    fprintf(stderr, "Successfully initialized logs.\n");
+
+    // skip_old_values(dev_file);
+    // skip_till_value(dev_file);
 
     f64 log2_last_write = get_secs();
     f64 log3_last_write = log2_last_write;
@@ -92,32 +133,33 @@ int main(int argc, char *argv[])
         read_value(dev_file, &value);
 
         f64 secs = get_secs();
-        assert(secs != INFINITY);
         DateTime date;
-        int res = get_datetime_from_secs(&date, secs);
-        assert(res == 0);
+        get_datetime_from_secs(&date, secs);
 
-        write_log1(logger, value, &date);
+        res = write_log(logs[0], value, &date, MAX_KEEP_LOG1);
+        if (res == -1)
+            fprintf(stderr, "Failed to write log 1! Skipping...");
 
         if (secs - log2_last_write >= PERIOD_LOG2) {
-            f64 avg = get_avg_log1(logger, PERIOD_LOG2, secs);
-            if (avg == INFINITY)
-                continue;
-            write_log2(logger, avg, &date);
-            log2_last_write = secs;
+            int res = write_log_with_avg(logs[1], logs[0], PERIOD_LOG2, MAX_KEEP_LOG2, &date);
+            if (res == -1)
+                fprintf(stderr, "Failed to write log 2! Skipping...");
+            else 
+                log2_last_write = secs;
         }
 
         if (secs - log3_last_write >= PERIOD_LOG3) {
-            f64 avg = get_avg_log2(logger, PERIOD_LOG3, secs);
-            if (avg == INFINITY)
-                continue;
-            write_log3(logger, avg, &date);
-            log3_last_write = secs;
+            int res = write_log_with_avg(logs[2], logs[1], PERIOD_LOG3, MAX_KEEP_LOG3, &date);
+            if (res == -1)
+                fprintf(stderr, "Failed to write log 3! Skipping...");
+            else
+                log3_last_write = secs;
         }
     }
 
-    if (deinit_logger(logger) == -1) 
-        perror("Failed to deinit logger");
+    for (int i = 0; i < 3; i++)
+        if (deinit_log(logs[i]))
+            fprintf(stderr, "Failed to deinit log %d\n", i);
 
     if (fclose(dev_file) == -1)
         perror("Failed to close device");

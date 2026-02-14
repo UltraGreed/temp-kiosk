@@ -10,6 +10,7 @@
 #include <winerror.h>
 #include <winnt.h>
 
+#include "my_types.h"
 #include "utils.h"
 
 int is_exist_shared_mem(const char *name)
@@ -43,7 +44,11 @@ int close_shared_mem(SharedMemory shm)
     return CloseHandle(shm) == 0 ? -1 : 0; // This API is bullshit
 }
 
-int unlink_shared_mem(const char *name) {}
+int unlink_shared_mem(const char *name)
+{
+    (void) name;
+    return 0;
+}
 
 void *map_shared_mem(SharedMemory shm, usize size)
 {
@@ -56,6 +61,7 @@ void *map_shared_mem(SharedMemory shm, usize size)
 
 int unmap_shared_mem(void *addr, usize size)
 {
+    (void) size;
     return UnmapViewOfFile(addr);
 }
 
@@ -91,4 +97,5 @@ int post_semaphore(Semaphore mem_sem)
 int unlink_semaphore(const char *name)
 {
     (void)name;
+    return 0;
 }

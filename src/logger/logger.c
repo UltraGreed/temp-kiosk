@@ -7,12 +7,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "my_types.h"
-#include "utils.h"
+#include "cross_mem.h"
 #include "cross_process.h"
 #include "cross_time.h"
-#include "cross_mem.h"
-
+#include "my_types.h"
+#include "utils.h"
+#include <sys/types.h>
 
 static volatile sig_atomic_t is_working = true;
 static f32 IDLE_INTER = 0.016;
@@ -45,7 +45,8 @@ static f32 COPY2_DELAY = 2.0;
         }                                                                                                    \
     } while (0);
 
-int write_start_copy(const char *fname, int n_copy) {
+int write_start_copy(const char *fname, int n_copy)
+{
     DateTime t;
     int time_res = get_datetime_now(&t);
     if (time_res == -1) {
@@ -53,12 +54,13 @@ int write_start_copy(const char *fname, int n_copy) {
         return -1;
     }
 
-    WRITE_FILE_OR_FAIL(fname, "Copy %d started with pid %d at: %02d-%02d-%d %02d:%02d:%0.3lf\n",
-                       n_copy, getpid(), t.day, t.month, t.year, t.hours, t.mins, t.secs);
+    WRITE_FILE_OR_FAIL(fname, "Copy %d started with pid %d at: %02d-%02d-%d %02d:%02d:%0.3lf\n", n_copy,
+                       getpid(), t.day, t.month, t.year, t.hours, t.mins, t.secs);
     return 0;
 }
 
-int write_exit_copy(const char *fname, int n_copy) {
+int write_exit_copy(const char *fname, int n_copy)
+{
     DateTime t;
     int time_res = get_datetime_now(&t);
     if (time_res == -1) {
@@ -66,14 +68,15 @@ int write_exit_copy(const char *fname, int n_copy) {
         return -1;
     }
 
-    WRITE_FILE_OR_FAIL(fname, "Copy %d exiting at: %02d-%02d-%d %02d:%02d:%0.3lf\n",
-                       n_copy, t.day, t.month, t.year, t.hours, t.mins, t.secs);
+    WRITE_FILE_OR_FAIL(fname, "Copy %d exiting at: %02d-%02d-%d %02d:%02d:%0.3lf\n", n_copy, t.day, t.month,
+                       t.year, t.hours, t.mins, t.secs);
     return 0;
 }
 
 /// Write pid, current date and counter.
 /// Return 0 on success, -1 on error.
-int write_info(const char *fname, i32 ctr) {
+int write_info(const char *fname, i32 ctr)
+{
     DateTime t;
     int time_res = get_datetime_now(&t);
     if (time_res == -1) {
@@ -81,13 +84,14 @@ int write_info(const char *fname, i32 ctr) {
         return -1;
     }
 
-    pid_t pid = getpid();
-    WRITE_FILE_OR_FAIL(fname, "PID: %d, Date: %02d-%02d-%d %02d:%02d:%0.3lf, Counter: %05d\n",
-                       pid, t.day, t.month, t.year, t.hours, t.mins, t.secs, ctr);
+    int pid = getpid();
+    WRITE_FILE_OR_FAIL(fname, "PID: %d, Date: %02d-%02d-%d %02d:%02d:%0.3lf, Counter: %05d\n", pid, t.day,
+                       t.month, t.year, t.hours, t.mins, t.secs, ctr);
     return 0;
 }
 
-int write_copies_still_running(const char *fname) {
+int write_copies_still_running(const char *fname)
+{
     DateTime t;
     int time_res = get_datetime_now(&t);
     if (time_res == -1) {
@@ -95,12 +99,13 @@ int write_copies_still_running(const char *fname) {
         return -1;
     }
 
-    WRITE_FILE_OR_FAIL(fname, "Copies still running at: %02d-%02d-%d %02d:%02d:%0.3lf\n",
-                       t.day, t.month, t.year, t.hours, t.mins, t.secs);
+    WRITE_FILE_OR_FAIL(fname, "Copies still running at: %02d-%02d-%d %02d:%02d:%0.3lf\n", t.day, t.month,
+                       t.year, t.hours, t.mins, t.secs);
     return 0;
 }
 
-void sig_handler(int s) {
+void sig_handler(int s)
+{
     (void)s;
     is_working = false;
 }
@@ -111,7 +116,8 @@ typedef enum {
     MODE_COPY2,
 } MODE;
 
-int wrong_args(void) {
+int wrong_args(void)
+{
     fprintf(stderr, "Usage: logger [--mode=main|copy1|copy2] LOG_PATH\n");
     return 2;
 }
@@ -125,14 +131,14 @@ int wrong_args(void) {
         }                                                                                                    \
     } while (0);
 
-
 static int exit_code = 0;
 
-int main(int argc, const char *argv[]) {
+int main(int argc, char **argv)
+{
     bool mmapped = false, shm_opened = false, cli_started = false, sem_loaded = false;
 
     MODE logger_mode;
-    const char *fname;
+    char *fname;
     if (argc == 2) {
         logger_mode = MODE_MAIN;
         fname = argv[1];
@@ -154,7 +160,7 @@ int main(int argc, const char *argv[]) {
     signal(SIGINT, sig_handler);
 
     // ref_ctr counter
-    // [xxxx]  [xxxx]  
+    // [xxxx]  [xxxx]
     int shm_existed = is_exist_shared_mem(LOGGER_SHM_NAME);
     if (shm_existed == -1) {
         perror("Unable to create shared memory");
@@ -162,15 +168,16 @@ int main(int argc, const char *argv[]) {
         goto cleanup;
     } else if (!shm_existed && logger_mode != MODE_MAIN) { // --mode=copy1|2 can't initialize shm
         const char *mode_name = logger_mode == MODE_COPY1 ? "copy1" : "copy2";
-        fprintf(stderr,
-                "Shared memory not found! --mode=%s can only be used when at least one process with --mode=main is already running! Aborting...\n",
-                mode_name);
+        fprintf(
+            stderr,
+            "Shared memory not found! --mode=%s can only be used when at least one process with --mode=main is already running! Aborting...\n",
+            mode_name);
         exit_code = 2;
         goto cleanup;
     }
 
     SharedMemory shm_fd = open_shared_mem(LOGGER_SHM_NAME, LOGGER_SHM_LEN);
-    if (shm_fd == (SharedMemory) -1) {
+    if (shm_fd == (SharedMemory)-1) {
         perror("Unable to create shared memory");
         exit_code = 1;
         goto cleanup;
@@ -190,9 +197,9 @@ int main(int argc, const char *argv[]) {
 
     i32 *ref_ctr = addr;
     i32 *ctr = (i32 *)addr + 1;
-    
+
     Semaphore sem = open_semaphore(LOGGER_SEM_NAME, 1);
-    if (sem == (void *) -1) {
+    if (sem == (void *)-1) {
         perror("Unable to create or open semaphore");
         exit_code = 1;
         goto cleanup;
@@ -211,9 +218,9 @@ int main(int argc, const char *argv[]) {
     Process cli_proc;
     if (logger_mode == MODE_MAIN) {
         // Starting CLI subprocess
-        usize bg_start_res = start_process(&cli_proc, LOGGER_CLI_CMD, (char *const[]){LOGGER_CLI_CMD, NULL});
+        usize bg_start_res = start_process(&cli_proc, LOGGER_CLI_CMD, (const char *const[]){LOGGER_CLI_CMD, NULL});
         if (bg_start_res != 0) {
-            fprintf(stderr, "Unable to start child process: %lu %s\n", bg_start_res, strerror(bg_start_res));
+            fprintf(stderr, "Unable to start child process: %zu %s\n", bg_start_res, strerror(bg_start_res));
             goto cleanup;
         }
         cli_started = true;
@@ -240,17 +247,18 @@ int main(int argc, const char *argv[]) {
                 }
                 if (get_secs() - copy_secs >= COPY_INTER) {
                     copy_secs = get_secs();
-                    if (copies_started && (is_process_running(copy1_proc) || is_process_running(copy2_proc))) {
+                    bool is_running = is_process_running(copy1_proc) || is_process_running(copy2_proc);
+                    if (copies_started && is_running) {
                         write_copies_still_running(fname);
                     } else {
-                        int start_copy1_res = start_process(&copy1_proc, LOGGER_CMD,
-                                                       (char *const[]){LOGGER_CMD, "--mode=copy1", fname, NULL});
+                        const char *const args1[] = {LOGGER_CMD, "--mode=copy1", fname, NULL};
+                        int start_copy1_res = start_process(&copy1_proc, LOGGER_CMD, args1);
                         if (start_copy1_res != 0) {
                             perror("Unable to start copy1");
                             goto cleanup;
                         }
-                        int start_copy2_res = start_process(&copy2_proc, LOGGER_CMD,
-                                                       (char *const[]){LOGGER_CMD, "--mode=copy2", fname, NULL});
+                        const char *const args2[] = {LOGGER_CMD, "--mode=copy2", fname, NULL};
+                        int start_copy2_res = start_process(&copy2_proc, LOGGER_CMD, args2);
                         if (start_copy2_res != 0) {
                             perror("Unable to start copy2");
                             goto cleanup;
@@ -289,7 +297,6 @@ int main(int argc, const char *argv[]) {
         write_exit_copy(fname, 2);
         TRY_OR_CLEANUP(post_semaphore(sem), "Unable to post semaphore");
     }
-
 
 cleanup:
     if (cli_started)

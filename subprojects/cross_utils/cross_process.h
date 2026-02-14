@@ -4,17 +4,19 @@
 #include "utils.h"
 
 #ifdef __linux__
-#include <time.h>
+#include <unistd.h>
+#include <sys/types.h>
 typedef pid_t Process;
 #else
 #include <windows.h>
+#include <winnt.h>
 typedef HANDLE Process;
 #endif
 
 /// Start executing *command* with provided args in background, set pid.
 /// Return errno if fork fails, 0 otherwise.
 /// Return 0 if successful, otherwise errno on Linux, GetLastError on Windows.
-usize start_process(Process *proc, const char *command, char *const argv[]);
+usize start_process(Process *proc, const char *command, const char *const argv[]);
 
 /// Enum for bg_wait result
 typedef enum {

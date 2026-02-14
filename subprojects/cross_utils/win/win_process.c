@@ -2,6 +2,9 @@
 #include "cross_process.h"
 #undef CROSS_PROCESS_IMPL
 
+#include <stdlib.h>
+#include <string.h>
+
 #include <errhandlingapi.h>
 #include <handleapi.h>
 #include <processthreadsapi.h>
@@ -9,13 +12,15 @@
 #include <windows.h>
 #include <winerror.h>
 #include <winnt.h>
+#include <minwindef.h>
 
+#include "my_types.h"
 #include "utils.h"
 
-static char *join_strings(char *const strings[])
+static char *join_strings(const char *const strings[])
 {
     usize total_len = 0;
-    for (char *const *arg = strings; *arg != NULL; arg++)
+    for (const char *const *arg = strings; *arg != NULL; arg++)
         total_len += strlen(*arg) + 1;
     total_len--;
 
@@ -23,7 +28,7 @@ static char *join_strings(char *const strings[])
     new_str[total_len] = '\0';
 
     char *cur_sym = new_str;
-    for (char *const *arg = strings; *arg != NULL; arg++) {
+    for (const char *const *arg = strings; *arg != NULL; arg++) {
         usize len = strlen(*arg);
         memcpy(cur_sym, *arg, len);
         if (cur_sym + len != new_str + total_len) {
@@ -35,13 +40,13 @@ static char *join_strings(char *const strings[])
     return new_str;
 }
 
-usize start_process(Process *proc, const char *command, char *const argv[])
+usize start_process(Process *proc, const char *command, const char *const argv[])
 {
     STARTUPINFO si = {0};
     si.cb = sizeof(si);
     PROCESS_INFORMATION pi = {0};
 
-    char *cmd_with_args = join_strings((char *const[]){command, join_strings(argv + 1)});
+    char *cmd_with_args = join_strings((const char *const[]){command, join_strings(&argv[1])});
     if (!CreateProcess(NULL, cmd_with_args, NULL, NULL, false, 0, NULL, NULL, &si, &pi))
         return GetLastError();
     free(cmd_with_args);

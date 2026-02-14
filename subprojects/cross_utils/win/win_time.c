@@ -2,12 +2,10 @@
 #include "cross_time.h"
 #undef CROSS_TIME_IMPL
 
+#include "my_types.h"
 #include <windows.h>
 
 
-// #define WIN_MORON1 10000
-//                    13414581552139
-// #define WIN_MORON2 116444736000000000LL
 #define WIN_MORON 116444736000000000LL
 
 f64 get_secs(void)
@@ -24,6 +22,6 @@ f64 get_secs(void)
     // printf("Current millis: %lld\n", millis);
     f64 secs = (ticks - WIN_MORON) * 1e-7;
 
-    printf("Current secs: %f\n", secs);
+    // printf("Current secs: %f\n", secs);
     return secs;
 } 

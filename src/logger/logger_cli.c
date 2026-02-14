@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "my_types.h"
 #include "utils.h"
 #include "cross_mem.h"
 #include "stdlib.h"

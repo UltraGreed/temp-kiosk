@@ -1,3 +1,12 @@
+/// This logger attempts to use a ring-buffer-like logic for log 1:
+/// if the first entry in the log is older than maximum allowed period of time,
+/// it starts to rewrite log from there line by line, until it reaches end of file.
+///
+/// Whenever the end of file is reached, first entry of the log is checked on timeout again.
+/// At the end of the execution all the lines in the logger are shifted to be sorted by date.
+///
+/// Logs 2 and 3 are sorted after each write.
+
 #include "logger_interface.h"
 
 #include <assert.h>
@@ -8,229 +17,121 @@
 #include <string.h>
 #include <time.h>
 
-#include "my_types.h"
 #include "cross_time.h"
+#include "my_types.h"
 #include "temp_logger.h"
 #include "utils.h"
 
-#define LINE_LEN (DATE_LEN + MSG_LEN + 3) // Including \n
-#define LOG1_NAME "log1.txt"
-#define LOG2_NAME "log2.txt"
-#define LOG3_NAME "log3.txt"
+// Including \n
+#define LOG_LINE_LEN (DATE_LEN + MSG_LEN + 3)
 
-#define RW_BUF_SIZE 1024
-#define MAX_PATH_LEN 256
+#define READ_BUF_SIZE 1024
 
-// TODO: it possibly would be better to create Log abstraction instead of Logger abstraction.
-// That would allow to call same function (e.g. get_avg_log(Log *log)) for all 3 logs from main file
-// Probably something along "Log *init_log(Logger *logger, usize log_i)" would fit
-struct Logger {
-    FILE *log1;
+struct Log {
+    FILE *file;
 
-    char log1_path[MAX_PATH_LEN + 1];
-    char log2_path[MAX_PATH_LEN + 1];
-    char log3_path[MAX_PATH_LEN + 1];
-
-    f64 log1_first_time;
+    f64 first_entry_time;
 };
 
-static int swap_file_parts(FILE *log);
-static f64 _get_log_avg(FILE *log, f64 period, f64 secs);
-static f64 first_entry_secs(FILE *log);
-static void try_create_logs(char *path1, char *path2, char *path3);
-static int _write_log(const char *log_name, f64 value, DateTime *date, i32 max_keep);
+static int swap_file_parts(FILE *file);
+static f64 first_entry_secs(FILE *file);
 static int get_value_precision(f64 value);
-static int print_value(char *str, f64 value);
+static void print_value(char *str, f64 value);
 
-Logger *create_logger(char **params, f64 secs)
+Log *init_log(const char log_dir[], const char log_file[])
 {
-    Logger *logger = malloc(sizeof(Logger));
+    char *log_path = join_paths_xmalloc(log_dir, log_file);
 
-    const char *dir_name = params[0];
-    const int dir_len = strlen(dir_name);
-    logger->log1_path = malloc(sizeof(char) * (dir_len + strlen(LOG1_NAME) + 2));
-    logger->log2_path = malloc(sizeof(char) * (dir_len + strlen(LOG2_NAME) + 2));
-    logger->log3_path = malloc(sizeof(char) * (dir_len + strlen(LOG3_NAME) + 2));
+    Log *log = xmalloc(sizeof(Log));
 
-    sprintf(logger->log1_path, "%s/%s", dir_name, LOG1_NAME);
-    sprintf(logger->log2_path, "%s/%s", dir_name, LOG2_NAME);
-    sprintf(logger->log3_path, "%s/%s", dir_name, LOG3_NAME);
+    // Create log without overwriting it if it exists.
+    // "a+" is the only way to do so, but it doesn't allow to overwrite written data later,
+    log->file = xfopen(log_path, "a+");
+    fclose(log->file);
+    // so we have to reopen file with "r+".
+    log->file = xfopen(log_path, "rb+");
 
-    // Check if logs are accessible and exit right away if they are not.
-    try_create_logs(logger->log1_path, logger->log2_path, logger->log3_path);
-
-    logger->log1 = fopen(logger->log1_path, "r+");
-    assert(logger->log1 != NULL);
-
-    if (fsize(logger->log1) == 0)
-        return logger;
-
-    /// Attempt to parse log1
-    f64 first = first_entry_secs(logger->log1);
-    if (first == INFINITY)
-        fprintf(stderr, "Failed to parse date from log 1. Overwriting it.\n");
-
-    bool is_old = (secs - first) > MAX_KEEP_LOG1;
-    if (first == INFINITY || is_old) {
-        // Overwrite log
-        fclose(logger->log1);
-        logger->log1 = fopen(logger->log1_path, "w+");
-        logger->log1_first_time = secs;
-    } else {
-        // Continue log
-        fseek(logger->log1, 0, SEEK_END);
-        logger->log1_first_time = first;
+    if (fsize(log->file) == 0) {
+        log->first_entry_time = -INFINITY;
+        return log;
     }
 
-    return logger;
+    /// Attempt to parse log
+    f64 first = first_entry_secs(log->file);
+    if (first == INFINITY) {
+        fprintf(stderr, "Failed to parse date from log %s. Overwriting it.\n", log_path);
+        log->first_entry_time = -INFINITY;
+    } else {
+        log->first_entry_time = first;
+    }
+
+    free(log_path);
+    return log;
 }
 
-int deinit_logger(Logger *logger)
+int deinit_log(Log *log)
 {
-    free(logger->log1_path);
-    free(logger->log2_path);
-    free(logger->log3_path);
-
-    int res1 = swap_file_parts(logger->log1);
+    int res1 = swap_file_parts(log->file);
     if (res1 == -1)
-        perror("Failed to sort log 1 on exit");
+        perror("Failed to sort log on exit");
 
-    int res2 = fclose(logger->log1);
+    int res2 = fclose(log->file);
     if (res2 == -1)
-        perror("Failed to close log 1 on exit");
+        perror("Failed to close log on exit");
+
+    free(log);
 
     return (res1 == 0 && res2 == 0) ? 0 : -1;
 }
 
-f64 get_avg_log1(Logger *logger, f64 period, f64 secs)
-{
-    f64 avg = _get_log_avg(logger->log1, period, secs);
-    if (avg == INFINITY)
-        perror("Error occured in log1 file!");
-    return avg;
-}
-
-f64 get_avg_log2(Logger *logger, f64 period, f64 secs)
-{
-    FILE *log = fopen(logger->log2_path, "r");
-    if (log == NULL) {
-        perror("Failed to access log2 file!");
-        return INFINITY;
-    }
-
-    f64 avg = _get_log_avg(log, period, secs);
-    if (avg == INFINITY)
-        perror("Error occured in log2 file!");
-    return avg;
-}
-
-int write_log1(Logger *logger, f64 value, DateTime *date)
+int write_log(Log *log, f64 value, DateTime *date, usize max_period)
 {
     time_t secs = to_secs(date);
-    if (fatend(logger->log1) && secs - logger->log1_first_time > MAX_KEEP_LOG1) {
-        rewind(logger->log1);
-        logger->log1_first_time = secs;
+    int at_end = fatend(log->file);
+    if (at_end == -1) {
+        fprintf(stderr, "No longer able to access log file! %s (%d)\n", strerror(errno), errno);
+        return -1;
+    }
+    if (at_end && secs - log->first_entry_time > max_period) {
+        rewind(log->file);
+        log->first_entry_time = secs;
     }
 
     char date_str[DATE_LEN + 1];
-    int res = print_date(date_str, date);
-    assert(res == 0);
+    print_date(date_str, date);
 
-    char value_str[MSG_LEN];
-    res = print_value(value_str, value);
-    assert(res == 0);
+    char value_str[MSG_LEN]; // No +1 because we don't need a delimiter
+    print_value(value_str, value);
 
-    printf("LOG1: %s : %s\n", date_str, value_str);
-    fprintf(logger->log1, "%s : %s\n", date_str, value_str);
-    fflush(logger->log1);
+    // printf("LOGGED: %s : %s\n", date_str, value_str);
+    fprintf(log->file, "%s : %s\n", date_str, value_str);
+    fflush(log->file);
 
     return 0;
 }
 
-int write_log2(Logger *logger, f64 avg, DateTime *date)
+f64 get_avg_log(Log *log, f64 period, DateTime *date)
 {
-    int res = _write_log(logger->log2_path, avg, date, MAX_KEEP_LOG2);
-    if (res == -1)
-        fprintf(stderr, "Failed to write log 2\n");
-    else
-        fprintf(stderr, "Written to log 2 successfully\n");
-    return res;
-}
-
-int write_log3(Logger *logger, f64 avg, DateTime *date)
-{
-    int res = _write_log(logger->log3_path, avg, date, MAX_KEEP_LOG3);
-    if (res == -1)
-        fprintf(stderr, "Failed to write log 3\n");
-    else
-        fprintf(stderr, "Written to log 3 successfully\n");
-    return res;
-}
-
-/// Swaps all the data before current file pos and after current file pos.
-/// Return 0 on success, -1 otherwise.
-static int swap_file_parts(FILE *log)
-{
-    if (fatend(log))
-        return 0;
-
-    int n_left = ftell(log);
-    if (n_left == -1) {
-        perror("Failed to access log file");
-        return -1;
-    }
-
-    // TODO: it would be better to check which part is smaller and alloc for it
-    char *swp_buf = malloc(n_left * sizeof(char));
-    if (swp_buf == NULL) {
-        perror("Failed to malloc for sorting log");
-        return -1;
-    }
-
-    rewind(log);
-    fread(swp_buf, sizeof(char), n_left, log);
-
-    // Write right part to the beginning
-    while (!fatend(log)) {
-        char rw_buf[RW_BUF_SIZE];
-        int n_read = fread(rw_buf, sizeof(char), RW_BUF_SIZE, log);
-        assert(n_read != 0);
-
-        fseek(log, -n_left - n_read, SEEK_CUR);
-        fwrite(rw_buf, sizeof(char), n_read, log);
-        fseek(log, n_left, SEEK_CUR);
-    }
-
-    // Write left part from buffer
-    fseek(log, -n_left, SEEK_END);
-    fwrite(swp_buf, sizeof(char), n_left, log);
-    fflush(log);
-
-    free(swp_buf);
-
-    return 0;
-}
-
-static f64 _get_log_avg(FILE *log, f64 period, f64 secs)
-{
-    int start_pos = ftell(log);
-    rewind(log);
+    i64 start_pos = ftello(log->file);
+    if (start_pos == -1)
+        return INFINITY;
+    rewind(log->file);
 
     f64 sum = 0;
     usize ctr = 0;
 
-    char line_buf[LINE_LEN + 1];
-    while (fgets(line_buf, LINE_LEN + 1, log) != NULL) {
+    char line_buf[LOG_LINE_LEN + 1];
+    while (fgets(line_buf, LOG_LINE_LEN + 1, log->file) != NULL) {
         DateTime date_entry;
         int res = scan_date(line_buf, &date_entry);
 
         f64 t = to_secs(&date_entry);
         if (res == -1 || t == INFINITY) {
-            perror("Incorrect date found in log file!");
+            fprintf(stderr, "Incorrect date found in the log file!: \"%s\"\n", line_buf);
             continue;
         }
 
-        if (secs - t <= period) {
+        if (to_secs(date) - t <= period) {
             f64 val;
             sscanf(line_buf, "%*s %*s : %lf", &val);
             sum += val;
@@ -243,23 +144,107 @@ static f64 _get_log_avg(FILE *log, f64 period, f64 secs)
         return INFINITY;
     }
 
-    fseek(log, start_pos, SEEK_SET);
+    fseeko(log->file, start_pos, SEEK_SET);
 
     return sum / ctr;
 }
 
-/// Return time from the first line of the log, -1 on error.
-static f64 first_entry_secs(FILE *log)
+int delete_old_entries(Log *log, DateTime *date, usize max_period)
 {
-    int fpos = ftell(log);
-    if (fpos == -1) {
-        perror("Failed to access log");
-        exit(1);
-    };
-    rewind(log);
+    assert(log->file != NULL);
+    rewind(log->file);
 
-    char buf[LINE_LEN + 1];
-    void *res = fgets(buf, LINE_LEN + 1, log);
+    i64 write_pos = 0;
+    char buf[LOG_LINE_LEN + 1];
+    while (!fatend(log->file)) {
+        fgets(buf, LOG_LINE_LEN + 1, log->file);
+        char *delim_pos = strstr(buf, "\n");
+        if (&buf[LOG_LINE_LEN - 1] != delim_pos) {
+            fseeko(log->file, -strlen(buf), SEEK_CUR);
+            char ch;
+            do {
+                ch = fgetc(log->file);
+            } while (ch != '\n' && ch != EOF);
+            continue;
+        }
+
+        DateTime date_entry;
+        int resd = scan_date(buf, &date_entry);
+        if (resd == 0 && to_secs(date) - to_secs(&date_entry) <= max_period) {
+            i64 read_pos = ftello(log->file);
+
+            fseeko(log->file, write_pos, SEEK_SET);
+            fwrite(buf, sizeof(char), LOG_LINE_LEN, log->file);
+            write_pos = ftello(log->file);
+
+            fseeko(log->file, read_pos, SEEK_SET);
+        }
+    }
+
+    if (write_pos != ftello(log->file)) {
+        ftrunc(log->file, write_pos);
+        freopen(NULL, "r+", log->file);
+        fseeko(log->file, 0, SEEK_END);
+    }
+
+    if (fsize(log->file) > 0)
+        log->first_entry_time = first_entry_secs(log->file);
+
+    return 0;
+}
+
+/// Inplace swap all the data before the current file pos and after the current file pos.
+/// Is used to sort file ring buffer.
+/// Return 0 on success, -1 otherwise.
+static int swap_file_parts(FILE *file)
+{
+    int at_end = fatend(file);
+    if (at_end == -1) {
+        perror("Failed to access file file");
+        return -1;
+    }
+
+    if (at_end)
+        return 0;
+
+    i64 n_left = ftello(file);
+
+    // TODO: it would be better to check which part is smaller and alloc for it
+    char *swp_buf = xmalloc(n_left * sizeof(char));
+
+    rewind(file);
+    fread(swp_buf, sizeof(char), n_left, file);
+
+    // Write right part to the beginning
+    while (!fatend(file)) {
+        char rw_buf[READ_BUF_SIZE];
+        int n_read = fread(rw_buf, sizeof(char), READ_BUF_SIZE, file);
+        assert(n_read != 0);
+
+        fseeko(file, -n_left - n_read, SEEK_CUR);
+        fwrite(rw_buf, sizeof(char), n_read, file);
+        fseeko(file, n_left, SEEK_CUR);
+    }
+
+    // Write left part from buffer
+    fseeko(file, -n_left, SEEK_END);
+    fwrite(swp_buf, sizeof(char), n_left, file);
+    fflush(file);
+
+    free(swp_buf);
+
+    return 0;
+}
+
+/// Return time from the first line of the log, -1 on error.
+static f64 first_entry_secs(FILE *file)
+{
+    assert(file != NULL);
+    i64 fpos = ftello(file);
+    rewind(file);
+
+    char buf[LOG_LINE_LEN + 1];
+    void *res = fgets(buf, LOG_LINE_LEN + 1, file);
     assert(res != NULL);
 
     DateTime date;
@@ -267,59 +252,8 @@ static f64 first_entry_secs(FILE *log)
     if (resd != 0)
         return INFINITY;
 
-    fseek(log, fpos, SEEK_SET);
+    fseeko(file, fpos, SEEK_SET);
     return to_secs(&date);
-}
-
-static void try_create_logs(char *path1, char *path2, char *path3)
-{
-    FILE *f1 = fopen_or_exit(path1, "a+");
-    fclose(f1);
-    FILE *f2 = fopen_or_exit(path2, "a+");
-    fclose(f2);
-    FILE *f3 = fopen_or_exit(path3, "a+");
-    fclose(f3);
-}
-
-static int _write_log(const char *log_name, f64 value, DateTime *date, i32 max_keep)
-{
-    FILE *log = fopen(log_name, "r+");
-    if (log == NULL) {
-        fprintf(stderr, "File %s no longer available! %s (%d)\n Skipping write...\n", log_name,
-                strerror(errno), errno);
-        return -1;
-    }
-
-    // If log exists, but is damaged, rewrite it completely.
-    // If log exists, but is old, rewrite it line by line.
-    // Continue from the end otherwise.
-    if (fsize(log) > 0) {
-        f64 first = first_entry_secs(log);
-
-        if (first == INFINITY) {
-            fprintf(stderr, "Failed to parse date from %s. Overwriting it.\n", log_name);
-            fclose(log);
-            log = fopen(log_name, "w+");
-        } else if (to_secs(date) - first > max_keep) {
-            fseek(log, 0, SEEK_SET);
-        }
-    }
-
-    char value_str[MSG_LEN];
-    int res = print_value(value_str, value);
-    assert(res == 0);
-
-    char date_str[DATE_LEN + 1];
-    int resd = print_date(date_str, date);
-    assert(resd == 0);
-
-    fprintf(log, "%s : %s\n", date_str, value_str);
-    fflush(log);
-
-    swap_file_parts(log);
-    fclose(log);
-
-    return 0;
 }
 
 static int get_value_precision(f64 value)
@@ -331,10 +265,8 @@ static int get_value_precision(f64 value)
         return 0;
 }
 
-static int print_value(char *str, f64 value)
+static void print_value(char *str, f64 value)
 {
     int res = snprintf(str, MSG_LEN, "%.*lf", get_value_precision(value), value);
-    if (res != MSG_LEN - 1)
-        return -1;
-    return 0;
+    assert(res == MSG_LEN - 1);
 }

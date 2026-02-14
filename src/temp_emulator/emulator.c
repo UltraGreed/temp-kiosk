@@ -11,6 +11,10 @@
 #include "my_types.h"
 #include "utils.h"
 
+#ifndef M_PI
+#define M_PI   3.14159265358979323846
+#endif
+
 #define TEMP_MIN 15.0
 #define TEMP_MAX 25.0
 #define MAX_CHANGE 0.5
