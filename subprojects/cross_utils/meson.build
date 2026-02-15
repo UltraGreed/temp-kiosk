@@ -10,7 +10,7 @@ cc = meson.get_compiler('c')
 add_project_arguments(
     cc.get_supported_arguments([
             '-Wno-padded',
-            '-Wformat-truncation=1',
+            '-Wno-format-truncation',
             '-Wno-arith-conversion',
             '-Wno-c++-compat',
             '-Wno-sign-conversion',
@@ -31,20 +31,27 @@ if host_machine.system() == 'windows'
     'win/win_process.c',
     'win/win_time.c',
     'win/win_mem.c',
+    'win/win_socket.c',
   ]
+  add_project_arguments(language : 'c')
+  sock_dep = cc.find_library('ws2_32', required : true)
 else
   platform_src = [
     'posix/posix_process.c',
     'posix/posix_time.c',
     'posix/posix_mem.c',
+    'posix/posix_socket.c',
   ]
+  sock_dep = []
 endif
+
     
 lib = static_library(
   'cross_utils',
   platform_src,
   common_src,
   include_directories: inc,
+  dependencies : sock_dep,
 )
 
 dep = declare_dependency(

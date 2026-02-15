@@ -7,6 +7,16 @@
 struct Log;
 typedef struct Log Log;
 
+typedef struct {
+    DateTime date;
+    f64 temp;
+} TempEntry;
+
+typedef struct {
+    TempEntry *items;
+    usize size;
+} TempArray;
+
 
 /// Initialize Log structure. 
 /// The caller is responsible for freeing memory with deinit_log.
@@ -26,3 +36,9 @@ f64 get_avg_log(Log *log, f64 period, DateTime *date);
 /// Delete all invalid or old log entries.
 /// Return 0 on success, -1 on error.
 int delete_old_entries(Log *log, DateTime *date, usize max_period);
+
+/// Get an array of all entries within the provided date range.
+/// Caller is responsible for memory freeing.
+/// If invalid entry is encountered it is replaced with (TempEntry){0}.
+/// Return pointer to allocated TempArray or NULL on error.
+TempArray *get_array_entries(Log *log, const DateTime *date_start, const DateTime *date_end);

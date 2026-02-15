@@ -21,7 +21,7 @@ cc = meson.get_compiler('c')
 add_project_arguments(
     cc.get_supported_arguments([
             '-Wno-padded',
-            '-Wformat-truncation=1',
+            '-Wno-format-truncation',
             '-Wno-arith-conversion',
             '-Wno-c++-compat',
             '-Wno-sign-conversion',
@@ -80,6 +80,18 @@ temp_logger_src = [
 temp_logger_exe = executable(
   'temp_logger',
   temp_logger_src,
+  temp_logger_logging_src,
+  dependencies : [cross_utils_dep, sqlite3_dep],
+  install : true,
+)
+
+temp_server_src = [
+  'src/temp_logger/temp_server.c',
+]
+
+temp_server_exe = executable(
+  'temp_server',
+  temp_server_src,
   temp_logger_logging_src,
   dependencies : [cross_utils_dep, sqlite3_dep],
   install : true,

@@ -118,9 +118,9 @@ void *strcat_xmalloc(const char *str1, const char *str2)
     return s;
 }
 
-bool is_valid_ascii(const u8 s[])
+bool is_valid_ascii(const u8 *s)
 {
-    for (const u8 *c = s; c != NULL; c++)
+    for (const u8 *c = s; *c != '\0'; c++)
         if (*c > 127) 
             return false;
     return true;

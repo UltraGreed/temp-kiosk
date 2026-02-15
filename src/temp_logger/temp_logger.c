@@ -14,20 +14,6 @@
 #include "my_types.h"
 #include "utils.h"
 
-#ifdef USEDB
-static char *log_args[] = {
-    TABLE_NAME_LOG1,
-    TABLE_NAME_LOG2,
-    TABLE_NAME_LOG3,
-};
-#else
-static char *log_args[] = {
-    FILE_NAME_LOG1,
-    FILE_NAME_LOG2,
-    FILE_NAME_LOG3,
-};
-#endif
-
 static bool is_working = true;
 void sigint_handler(int sig)
 {
@@ -100,6 +86,7 @@ int delete_old_logs_entries(Log **logs, DateTime *date)
     return (res1 == 0) && (res2 == 0) && (res3 == 0);
 }
 
+// TODO: prefix each stderr message with either FAIL or WARN, depending on severity
 int main(int argc, char *argv[])
 {
     int res;
@@ -114,7 +101,7 @@ int main(int argc, char *argv[])
 
     Log *logs[3];
     for (int i = 0; i < 3; i++)
-        logs[i] = init_log(argv[2], log_args[i]);
+        logs[i] = init_log(argv[2], LOG_ARGS[i]);
 
     DateTime date;
     get_datetime_now(&date);

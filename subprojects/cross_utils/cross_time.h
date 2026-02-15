@@ -13,6 +13,10 @@ typedef struct {
     u8 mins;
 } DateTime;
 
+// Kolhozno a bit but soidet
+#define FIRST_DATE (DateTime){.year = 1, .day = 1, .month = 1, .hours = 0, .mins = 0, .secs = 0}
+#define LAST_DATE (DateTime){.year = 9999, .day = 31, .month = 12, .hours = 23, .mins = 59, .secs = 59.999}
+
 /// Get elapsed time since the Epoch, 1970-01-01 00:00:00 +0000 (UTC)
 /// Exit on fail.
 f64 get_secs(void);
@@ -37,9 +41,13 @@ f64 to_secs(DateTime *date);
 /// Return 0 on success, -1 on error.
 int scan_date(const char *s, DateTime *date);
 
+/// Scan date from string in provided format.
+/// Return 0 on success, -1 on error.
+int scan_date_fmt(const char *s, DateTime *date, const char *date_fmt);
+
 /// Print date to string in "YYYY-MM-DD hh:mm:ss.sss" format.
 /// Can't fail.
-void print_date(char *s, DateTime *date);
+void print_date(char *s, const DateTime *date);
 
 #ifdef CROSS_TIME_IMPL
 #include <assert.h>
@@ -99,10 +107,17 @@ f64 to_secs(DateTime *date)
 
 int scan_date(const char *s, DateTime *date)
 {
+    return scan_date_fmt(s, date, "%d-%d-%d %d:%d:%lf");
+}
+
+int scan_date_fmt(const char *s, DateTime *date, const char *fmt)
+{
+    assert(s != NULL);
+
     i32 year, month, day, hours, minutes;
     f64 seconds;
 
-    int res = sscanf(s, "%d-%d-%d %d:%d:%lf", &year, &month, &day, &hours, &minutes, &seconds);
+    int res = sscanf(s, fmt, &year, &month, &day, &hours, &minutes, &seconds);
     if (res != 6)
         return -1;
 
@@ -118,10 +133,10 @@ int scan_date(const char *s, DateTime *date)
     return 0;
 }
 
-void print_date(char *s, DateTime *date)
+void print_date(char *s, const DateTime *date)
 {
-    int res = sprintf(s, "%04u-%02u-%02u %02u:%02u:%06.3lf", date->year, date->month, date->day,
-                      date->hours, date->mins, date->secs);
+    int res = sprintf(s, "%04u-%02u-%02u %02u:%02u:%06.3lf", date->year, date->month, date->day, date->hours,
+                      date->mins, date->secs);
     assert(res == 23);
 }
 #endif

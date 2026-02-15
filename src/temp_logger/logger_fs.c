@@ -35,8 +35,6 @@ struct Log {
 
 static int swap_file_parts(FILE *file);
 static f64 first_entry_secs(FILE *file);
-static int get_value_precision(f64 value);
-static void print_value(char *str, f64 value);
 
 Log *init_log(const char log_dir[], const char log_file[])
 {
@@ -101,7 +99,7 @@ int write_log(Log *log, f64 value, DateTime *date, usize max_period)
     print_date(date_str, date);
 
     char value_str[MSG_LEN]; // No +1 because we don't need a delimiter
-    print_value(value_str, value);
+    snprintf(value_str, MSG_LEN, "%lf", value);
 
     // printf("LOGGED: %s : %s\n", date_str, value_str);
     fprintf(log->file, "%s : %s\n", date_str, value_str);
@@ -254,19 +252,4 @@ static f64 first_entry_secs(FILE *file)
 
     fseeko(file, fpos, SEEK_SET);
     return to_secs(&date);
-}
-
-static int get_value_precision(f64 value)
-{
-    usize len = flen(value);
-    if (len < MSG_LEN - 2)
-        return MSG_LEN - len - 2;
-    else
-        return 0;
-}
-
-static void print_value(char *str, f64 value)
-{
-    int res = snprintf(str, MSG_LEN, "%.*lf", get_value_precision(value), value);
-    assert(res == MSG_LEN - 1);
 }

@@ -17,7 +17,7 @@ typedef sem_t *Semaphore;
 int is_exist_shared_mem(const char *name);
 
 /// Open shared memory
-/// Return (MEM_SHM) -1 on error, address to fd otherwise
+/// Return (SharedMemory) -1 on error, address to fd otherwise
 SharedMemory open_shared_mem(const char *name, usize size);
 
 /// Close shared memory
