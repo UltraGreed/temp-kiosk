@@ -243,7 +243,7 @@ end:
     if (array3 != NULL)
         free(array3);
 
-    close(client);
+    close_socket(client);
     return retval;
 error:
     retval = -1;

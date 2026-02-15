@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Graph UI</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: rgba(255, 255, 255, 0.06);
+        --panel2: rgba(255, 255, 255, 0.10);
+        --text: rgba(255, 255, 255, 0.90);
+        --muted: rgba(255, 255, 255, 0.65);
+        --stroke: rgba(255, 255, 255, 0.14);
+        --accent: #58c7ff;
+        --accent2: #8b6bff;
+        --shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+        --r: 16px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(1200px 600px at 20% 10%, rgba(88, 199, 255, 0.18), transparent 55%),
+          radial-gradient(900px 500px at 85% 30%, rgba(139, 107, 255, 0.16), transparent 55%),
+          radial-gradient(1000px 700px at 50% 120%, rgba(80, 255, 170, 0.10), transparent 60%),
+          var(--bg);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .wrap {
+        width: min(980px, 100%);
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: calc(var(--r) + 6px);
+        box-shadow:
+          0 18px 60px rgba(0, 0, 0, 0.50),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+        padding: 18px;
+        backdrop-filter: blur(10px);
+      }
+
+      .top {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      .dt {
+        appearance: none;
+        width: 100%;
+        border-radius: var(--r);
+        border: 1px solid rgba(255,255,255,0.14);
+        background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+        color: var(--text);
+        padding: 12px 12px;
+        outline: none;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+        transition: border-color .15s ease, background .15s ease;
+        letter-spacing: 0.2px;
+      }
+
+      .dt:hover {
+        border-color: rgba(255,255,255,0.22);
+        background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+      }
+
+      .dt:focus {
+        border-color: rgba(88, 199, 255, 0.55);
+        box-shadow:
+          0 0 0 3px rgba(88, 199, 255, 0.15),
+          inset 0 1px 0 rgba(255,255,255,0.06);
+      }
+
+      .dt::-webkit-calendar-picker-indicator {
+        filter: invert(1) opacity(0.75);
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: var(--r);
+        padding: 12px 16px;
+        font-weight: 650;
+        letter-spacing: 0.2px;
+        color: rgba(255,255,255,0.92);
+        background: linear-gradient(135deg, rgba(88,199,255,0.92), rgba(139,107,255,0.92));
+        box-shadow: 0 10px 24px rgba(88,199,255,0.15);
+        cursor: pointer;
+        transition: transform .08s ease, filter .15s ease, box-shadow .15s ease;
+        white-space: nowrap;
+      }
+
+      button:hover {
+        filter: brightness(1.04);
+        box-shadow: 0 12px 28px rgba(139,107,255,0.16);
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+        filter: grayscale(0.2);
+      }
+
+      .stage {
+        height: 420px;
+        border-radius: calc(var(--r) + 10px);
+        border: 1px solid rgba(255,255,255,0.14);
+        background:
+          linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.18)),
+          radial-gradient(800px 420px at 50% 20%, rgba(255,255,255,0.06), transparent 70%);
+        position: relative;
+        overflow: hidden;
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          0 12px 40px rgba(0,0,0,0.35);
+      }
+
+      .stage::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        background:
+          radial-gradient(500px 260px at 10% 10%, rgba(88,199,255,0.18), transparent 60%),
+          radial-gradient(420px 240px at 90% 20%, rgba(139,107,255,0.14), transparent 60%);
+        pointer-events: none;
+        opacity: 0.65;
+      }
+
+      #canvas {
+        padding: 0;
+        display: block;
+      }
+
+      #plot.stage {
+        width: 100%;
+        height: 420px;
+        border: 0;
+        background: transparent;
+        display: block;
+        border-radius: calc(var(--r) + 10px);
+        position: relative;
+        z-index: 1;
+      }
+
+      @media (max-width: 720px) {
+        .top { grid-template-columns: 1fr; }
+        button { width: 100%; }
+        .stage { height: 360px; }
+        #plot.stage { height: 360px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <input id="from" class="dt" type="datetime-local" step="0.001" />
+        <input id="to" class="dt" type="datetime-local" step="0.001" />
+        <button id="send" type="button">Send</button>
+      </div>
+
+      <div id="canvas" class="stage">
+          <canvas id="plot" class="stage"></canvas>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        let lastPoints = null;
+        const fromEl = document.getElementById("from");
+        const toEl = document.getElementById("to");
+        const btn = document.getElementById("send");
+        const plot = document.getElementById("plot");
+
+        attachWheelTimePicker(fromEl);
+        attachWheelTimePicker(toEl);
+
+        function pad(n, size) {
+          return String(n).padStart(size, "0");
+        }
+
+        function toLocalInputValue(d) {
+          const yyyy = d.getFullYear();
+          const mm = pad(d.getMonth() + 1, 2);
+          const dd = pad(d.getDate(), 2);
+          const hh = pad(d.getHours(), 2);
+          const mi = pad(d.getMinutes(), 2);
+          const ss = pad(d.getSeconds(), 2);
+          const ms = pad(d.getMilliseconds(), 3);
+          return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}.${ms}`;
+        }
+
+        function attachWheelTimePicker(input) {
+          input.addEventListener(
+            "wheel",
+            (e) => {
+              if (!input.value) {
+                return;
+              }
+
+              e.preventDefault();
+
+              const dir = e.deltaY > 0 ? -1 : 1;
+
+              let stepMs = 1000;
+              if (e.shiftKey) stepMs = 1;
+              if (e.altKey) stepMs = 100;
+              if (e.ctrlKey) stepMs = 60000;
+
+              const t = new Date(input.value).getTime();
+              const next = new Date(t + dir * stepMs);
+              input.value = toLocalInputValue(next);
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+            },
+            { passive: false }
+          );
+        }
+
+        function jsonToPoints(json) {
+          const rows = json?.data ?? [];
+          const pts = [];
+
+          for (let i = 0; i < rows.length; i++) {
+            const x = Date.parse(rows[i].date.replace(" ", "T"));
+            const y = Number(rows[i].temp);
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              pts.push({ x, y });
+            }
+          }
+
+          pts.sort((a, b) => a.x - b.x);
+          return pts;
+        }
+
+        function drawPlot(canvas, points) {
+          const ctx = canvas.getContext("2d");
+
+          const w = canvas.clientWidth || 900;
+          const h = canvas.clientHeight || 420;
+
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.round(w * dpr);
+          canvas.height = Math.round(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          ctx.clearRect(0, 0, w, h);
+
+          if (!points || points.length < 2) {
+            return;
+          }
+
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const p of points) {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+          }
+
+          if (minX === maxX) maxX = minX + 1;
+          if (minY === maxY) { minY -= 1; maxY += 1; }
+
+          const yPad = (maxY - minY) * 0.08;
+          minY -= yPad;
+          maxY += yPad;
+
+          const padL = 56;
+          const padR = 18;
+          const padT = 14;
+          const padB = 34;
+
+          const iw = w - padL - padR;
+          const ih = h - padT - padB;
+
+          const xToPx = (x) => padL + ((x - minX) / (maxX - minX)) * iw;
+          const yToPx = (y) => padT + ih - ((y - minY) / (maxY - minY)) * ih;
+
+          const fmtTime = (ms) => {
+            const d = new Date(ms);
+            const hh = pad(d.getHours(), 2);
+            const mi = pad(d.getMinutes(), 2);
+            const ss = pad(d.getSeconds(), 2);
+            return `${hh}:${mi}:${ss}`;
+          };
+
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(255,255,255,0.08)";
+          const yTicks = 5;
+          for (let i = 0; i <= yTicks; i++) {
+            const t = i / yTicks;
+            const yy = padT + t * ih;
+            ctx.beginPath();
+            ctx.moveTo(padL, yy);
+            ctx.lineTo(padL + iw, yy);
+            ctx.stroke();
+          }
+
+          ctx.strokeStyle = "rgba(255,255,255,0.10)";
+          ctx.beginPath();
+          ctx.moveTo(padL, padT);
+          ctx.lineTo(padL, padT + ih);
+          ctx.lineTo(padL + iw, padT + ih);
+          ctx.stroke();
+
+          ctx.font = "600 12px ui-sans-serif, system-ui";
+          ctx.fillStyle = "rgba(255,255,255,0.70)";
+
+          ctx.textAlign = "right";
+          ctx.textBaseline = "middle";
+          for (let i = 0; i <= yTicks; i++) {
+            const t = i / yTicks;
+            const yVal = maxY - t * (maxY - minY);
+            const yy = padT + t * ih;
+            ctx.fillText(yVal.toFixed(2), padL - 10, yy);
+          }
+
+          const xTicks = 4;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          for (let i = 0; i <= xTicks; i++) {
+            const t = i / xTicks;
+            const xVal = minX + t * (maxX - minX);
+            const xx = padL + t * iw;
+
+            ctx.strokeStyle = "rgba(255,255,255,0.07)";
+            ctx.beginPath();
+            ctx.moveTo(xx, padT);
+            ctx.lineTo(xx, padT + ih);
+            ctx.stroke();
+
+            ctx.fillStyle = "rgba(255,255,255,0.62)";
+            ctx.fillText(fmtTime(xVal), xx, padT + ih + 8);
+          }
+
+          const p0x = xToPx(points[0].x);
+          const p0y = yToPx(points[0].y);
+
+          ctx.beginPath();
+          ctx.moveTo(p0x, p0y);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(xToPx(points[i].x), yToPx(points[i].y));
+          }
+          ctx.lineTo(padL + iw, padT + ih);
+          ctx.lineTo(padL, padT + ih);
+          ctx.closePath();
+
+          const fillGrad = ctx.createLinearGradient(0, padT, 0, padT + ih);
+          fillGrad.addColorStop(0, "rgba(88,199,255,0.20)");
+          fillGrad.addColorStop(1, "rgba(88,199,255,0.00)");
+          ctx.fillStyle = fillGrad;
+          ctx.fill();
+
+          const strokeGrad = ctx.createLinearGradient(padL, 0, padL + iw, 0);
+          strokeGrad.addColorStop(0, "rgba(88,199,255,0.95)");
+          strokeGrad.addColorStop(1, "rgba(139,107,255,0.92)");
+
+          ctx.shadowColor = "rgba(88,199,255,0.35)";
+          ctx.shadowBlur = 10;
+
+          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = strokeGrad;
+          ctx.lineJoin = "round";
+          ctx.lineCap = "round";
+
+          ctx.beginPath();
+          ctx.moveTo(p0x, p0y);
+          for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(xToPx(points[i].x), yToPx(points[i].y));
+          }
+          ctx.stroke();
+
+          ctx.shadowBlur = 0;
+
+          const last = points[points.length - 1];
+          const lx = xToPx(last.x);
+          const ly = yToPx(last.y);
+
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.beginPath();
+          ctx.arc(lx, ly, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = "rgba(255,255,255,0.75)";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "bottom";
+          ctx.font = "600 12px ui-sans-serif, system-ui";
+          ctx.fillText(last.y.toFixed(3), Math.min(lx + 8, w - padR - 42), Math.max(ly - 6, padT + 12));
+        }
+
+        const now = new Date();
+        const before = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+        fromEl.value = toLocalInputValue(before);
+        toEl.value = toLocalInputValue(now);
+
+        async function send() {
+          const from = new Date(fromEl.value).getTime();
+          const to = new Date(toEl.value).getTime();
+
+          if (!from || !to) {
+            return;
+          }
+
+          btn.disabled = true;
+
+          try {
+            const url = new URL("", "http://localhost:8080");
+            url.searchParams.set("date_start", String(from));
+            url.searchParams.set("date_end", String(to));
+
+            const res = await fetch(url.toString(), { method: "GET" });
+
+            const json = await res.json();
+            const pts = jsonToPoints(json);
+            drawPlot(plot, pts);
+
+            lastPoints = pts;
+            render();
+
+            console.log(res.status);
+          } catch (err) {
+            console.error(err);
+          } finally {
+            btn.disabled = false;
+          }
+        }
+
+        function render() {
+          if (lastPoints) drawPlot(plot, lastPoints);
+        }
+
+        window.addEventListener("resize", render);
+
+        btn.addEventListener("click", send);
+      })();
+    </script>
+  </body>
+</html>
+
