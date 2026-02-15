@@ -20,10 +20,8 @@
 #define HTTP_GET_MAX_LEN 1024
 
 #define RESPONSE_HEADER_FSTRING                                                                              \
-    "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\nContent-Type: application/json; charset=utf-8\r\n\r\n"
+    "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\nContent-Type: application/json; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
 #define RESPONSE_HEADER_MAX_LEN 256
-
-#define ESCAPED_DATE_FMT "%d-%d-%d%%20%d:%d:%lf"
 
 #define _TO_TEXT(S) #S
 #define TO_TEXT(S) _TO_TEXT(S)
@@ -90,6 +88,7 @@ char *print_json(TempArray *array, char *dest)
             pos++;
         }
 
+        // TODO: send unix-epoch timestamp instead of this 
         char date_str[DATE_LEN + 1];
         print_date(date_str, &array->items[i].date);
 
@@ -162,28 +161,32 @@ int handle_client(Log **logs, Socket client)
     }
 
     DateTime *date_start_ptr = NULL, *date_end_ptr = NULL;
-    DateTime date_start, date_end;
-
-    char *date_start_str = strstr(get_query, "date_start=");
-    if (date_start_str != NULL) {
-        char *eq_pos = strstr(date_start_str, "=");
-        if (scan_date_fmt(eq_pos + 1, &date_start, ESCAPED_DATE_FMT) == -1) {
-            fprintf(stderr, "Failed to parse request: invalid date_start format!\n");
+    char *unix_start_str = strstr(get_query, "date_start=");
+    if (unix_start_str != NULL) {
+        usize unix_ms;
+        int ms_read = sscanf(unix_start_str + 11, "%zd", &unix_ms);
+        if (ms_read != 1) {
+            fprintf(stderr, "Failed to parse request: invalid date_start!\n");
             respond_error(client, "400", "Bad Request");
             goto error;
         }
+        DateTime date_start;
+        get_datetime_from_secs(&date_start, (f64) unix_ms / 1000);
         date_start_ptr = &date_start;
     }
 
-    char *date_end_str = strstr(get_query, "date_end=");
-    if (date_end_str != NULL) {
-        char *eq_pos = strstr(date_end_str, "=");
-        if (scan_date_fmt(eq_pos + 1, &date_end, ESCAPED_DATE_FMT) == -1) {
+    char *unix_end_str = strstr(get_query, "date_end=");
+    if (unix_end_str != NULL) {
+        usize unix_ms;
+        int ms_read = sscanf(unix_end_str + 9, "%zd", &unix_ms);
+        if (ms_read != 1) {
             fprintf(stderr, "Failed to parse request: invalid date_end format!\n");
             respond_error(client, "400", "Bad Request");
             goto error;
         }
-        date_end_ptr = &date_end;
+        DateTime date_start;
+        get_datetime_from_secs(&date_start, (f64) unix_ms / 1000);
+        date_end_ptr = &date_start;
     }
 
     array1 = get_array_entries(logs[0], date_start_ptr, date_end_ptr);
