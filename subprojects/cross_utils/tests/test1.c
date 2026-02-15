@@ -10,18 +10,18 @@
         return 1;                                                                                            \
     }
 
-#ifdef __linux__
-const char *test_command = "/usr/bin/sleep";
-char command_name[] = "sleep";
-#define ARGS(x) x
-const usize no_process_code = 3;
-#else
+#ifdef WIN32
 static const char *test_command = "ping";
 char command_name[] = "ping";
 static char arg1[] = "-n";
 static char arg2[] = "127.0.0.1";
 const usize no_process_code = 6;
 #define ARGS(x) arg1, x, arg2
+#else
+const char *test_command = "/usr/bin/sleep";
+char command_name[] = "sleep";
+#define ARGS(x) x
+const usize no_process_code = 3;
 #endif
 
 static bool test_timeout(void)

@@ -51,9 +51,9 @@ void skip_old_values(FILE *dev_file)
 /// Return 0 on success, -1 on error;
 int read_value(FILE *dev, f64 *value)
 {
-    *value = 15.0 + (f64) rand() / RAND_MAX * 3;
-    sleep(1);
-    return 0;
+    // *value = 15.0 + (f64) rand() / RAND_MAX * 3;
+    // sleep(1);
+    // return 0;
     char temp_str[MSG_LEN + 1];
     void *res = fgets(temp_str, MSG_LEN + 1, dev);
     if (res == NULL) {
@@ -122,8 +122,8 @@ int main(int argc, char *argv[])
     
     fprintf(stderr, "Successfully initialized logs.\n");
 
-    // skip_old_values(dev_file);
-    // skip_till_value(dev_file);
+    skip_old_values(dev_file);
+    skip_till_value(dev_file);
 
     f64 log2_last_write = get_secs();
     f64 log3_last_write = log2_last_write;

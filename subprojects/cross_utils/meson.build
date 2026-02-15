@@ -26,17 +26,17 @@ common_src = [
   'utils.c',
 ]
 
-if host_machine.system() == 'linux'
-  platform_src = [
-    'linux/linux_process.c',
-    'linux/linux_time.c',
-    'linux/linux_mem.c',
-  ]
-else
+if host_machine.system() == 'windows'
   platform_src = [
     'win/win_process.c',
     'win/win_time.c',
     'win/win_mem.c',
+  ]
+else
+  platform_src = [
+    'posix/posix_process.c',
+    'posix/posix_time.c',
+    'posix/posix_mem.c',
   ]
 endif
     

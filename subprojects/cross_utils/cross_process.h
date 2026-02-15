@@ -3,14 +3,14 @@
 #include "my_types.h"
 #include "utils.h"
 
-#ifdef __linux__
-#include <unistd.h>
-#include <sys/types.h>
-typedef pid_t Process;
-#else
+#ifdef WIN32
 #include <windows.h>
 #include <winnt.h>
 typedef HANDLE Process;
+#else
+#include <unistd.h>
+#include <sys/types.h>
+typedef pid_t Process;
 #endif
 
 /// Start executing *command* with provided args in background, set pid.

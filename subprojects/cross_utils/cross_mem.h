@@ -1,13 +1,13 @@
 #pragma once
 
-#ifdef __linux__
-#include <semaphore.h>
-typedef int SharedMemory;
-typedef sem_t *Semaphore;
-#else
+#ifdef WIN32
 #include <windows.h>
 typedef HANDLE SharedMemory;
 typedef HANDLE Semaphore;
+#else
+#include <semaphore.h>
+typedef int SharedMemory;
+typedef sem_t *Semaphore;
 #endif
 
 #include "my_types.h"

@@ -13,6 +13,8 @@
 #include "my_types.h"
 #include "utils.h"
 
+typedef HANDLE SharedMemory;
+
 int is_exist_shared_mem(const char *name)
 {
     SharedMemory *new_shm_fd = open_shared_mem(name, 1);
